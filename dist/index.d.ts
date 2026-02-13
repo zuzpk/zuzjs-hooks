@@ -182,22 +182,15 @@ type AnchorOptions = {
     offsetX?: number;
     offsetY?: number;
     overflow?: boolean;
-};
-declare const useAnchorPosition: (parent?: HTMLElement | null, event?: MouseEvent | null, options?: AnchorOptions & {
     preferredAnchor?: ValueOf<typeof AnchorType>;
-}) => {
+};
+declare const useAnchorPosition: (parent?: HTMLElement | null, event?: MouseEvent | null, options?: AnchorOptions) => {
     position: {
         top: number;
         left: number;
     };
-    targetRef: react.RefObject<HTMLDivElement | null>;
-    calculatedAnchor: ValueOf<{
-        readonly TopLeft: "top left";
-        readonly TopRight: "top right";
-        readonly TopCenter: "top center";
-        readonly BottomLeft: "bottom left";
-        readonly BottomRight: "bottom right";
-    }>;
+    targetRef: react.RefObject<HTMLElement | null>;
+    calculatedAnchor: "top left" | "top right" | "top center" | "bottom left" | "bottom right";
 };
 
 declare const useCalendar: (range?: number, dayFormat?: CalendarWeekdayFormat, monthFormat?: CalendarMonthFormat) => {

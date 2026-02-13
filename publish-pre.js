@@ -30,11 +30,11 @@ let major = +_major
 let minor = +_minor
 let patch = +_patch
 
-if ( patch < 9 ) {
+if ( patch < 99 ) {
     patch += 1
 } else {
     patch = 0
-    if ( minor < 9 ) {
+    if ( minor < 99 ) {
         minor += 1
     } else {
         minor = 0

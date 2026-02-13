@@ -99,6 +99,7 @@ const useScrollbar = (speed: number, breakpoints: ScrollBreakpoint = {}) => {
     if (!containerRef.current) return;
     // *** Call requestVisualUpdate instead of postScroll ***
     requestVisualUpdate();
+    window.dispatchEvent(new Event('scroll'));
   }, [requestVisualUpdate]);
 
   // Dragging logic
