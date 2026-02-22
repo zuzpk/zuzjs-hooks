@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 enum DBMode {
     readOnly = "readonly",
@@ -24,11 +24,23 @@ export interface IDBSchema {
     unique?: boolean
 }
 
-const useDB = (options: IDBOptions) => {
+const useDatabase = (options: IDBOptions) => {
 
     const { name, version, meta } = options;
     const db = useRef<IDBDatabase | null>(null);
     const [ error, setError ] = useState<string | null>(null);
+    const listeners = useRef<Map<string, Set<(result?: any) => void>>>(new Map());
+
+    const notify = useCallback((storeName: string, result?: any) => {
+        listeners.current.get(storeName)?.forEach(cb => cb(result));
+    }, []);
+
+    // Subscribe to changes
+    const subscribe = useCallback((storeName: string, callback: (result?: any) => void) => {
+        if (!listeners.current.has(storeName)) listeners.current.set(storeName, new Set());
+        listeners.current.get(storeName)!.add(callback);
+        return () => { listeners.current.get(storeName)?.delete(callback); };
+    }, []);
     
     useEffect(() => {
 
@@ -146,7 +158,8 @@ const useDB = (options: IDBOptions) => {
             const request = store.add(value, key);
 
             request.onsuccess = (evt: any) => {
-                resolve(evt.target.result);
+                notify(storeName, evt.target?.result);
+                resolve(evt.target?.result);
             };
         
             request.onerror = (evt: any) => {
@@ -172,7 +185,10 @@ const useDB = (options: IDBOptions) => {
                     return;
                 }
                 const updateReq = store.put({ ...existing, ...value });
-                updateReq.onsuccess = () => resolve();
+                updateReq.onsuccess = (evt: any) => {
+                    notify(storeName, evt.target?.result);
+                    resolve(evt.target?.result)
+                };
                 updateReq.onerror = (evt: any) => reject(`Update failed. ${evt.target.error}`);
 
             }
@@ -192,7 +208,8 @@ const useDB = (options: IDBOptions) => {
             let completed = 0
             const request = store.put(values);
             request.onsuccess = (evt: any) => {
-                resolve();
+                notify(storeName, evt.target?.result);
+                resolve(evt.target?.result);
             };
             request.onerror = (evt: any) => {
                 reject(`UPDATE Failed. ${evt.target.result}`);
@@ -209,7 +226,8 @@ const useDB = (options: IDBOptions) => {
             const { store } = createTransaction(storeName, DBMode.readWrite)
             const request = store.delete(key)
             request.onsuccess = (evt: any) => {
-                resolve();
+                notify(storeName, evt.target?.result);
+                resolve(evt.target?.result);
             };
         })
         .catch(err => {
@@ -226,9 +244,10 @@ const useDB = (options: IDBOptions) => {
         update,
         update_one,
         remove,
-        error 
+        subscribe,
+        error
     }
 
 }
 
-export default useDB
+export default useDatabase

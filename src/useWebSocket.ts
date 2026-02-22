@@ -15,7 +15,6 @@ const socketInstances = new Map<string, WebSocket>();
 const listenersMap = new Map<string, ((event: MessageEvent) => void)[]>();
 const reconnectIntervals = new Map<string, number>(); // Store dynamic reconnect intervals
 
-
 const useWebSocket = (url: string, options?: WebSocketOptions) => {
   
   const { onOpen, onClose, onRawMessage, onMessage, onError, reconnect = true } = options || {};

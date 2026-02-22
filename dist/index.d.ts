@@ -1,5 +1,6 @@
 import * as react from 'react';
 import { RefObject, ReactNode } from 'react';
+import * as react_jsx_runtime from 'react/jsx-runtime';
 import { CancelTokenSource } from '@zuzjs/core';
 
 type dynamic = {
@@ -165,7 +166,7 @@ interface IDBSchema {
     key?: string;
     unique?: boolean;
 }
-declare const useDB: (options: IDBOptions) => {
+declare const useDatabase: (options: IDBOptions) => {
     getAll: <T>(storeName: string) => Promise<T>;
     getByID: <T>(storeName: string, id: string | number) => Promise<T>;
     getStore: <T>(storeName: string, id: string | number) => Promise<T>;
@@ -175,7 +176,26 @@ declare const useDB: (options: IDBOptions) => {
     }) => Promise<void>;
     update_one: <T extends Object>(storeName: string, value: Partial<T>, key: IDBValidKey) => Promise<void>;
     remove: (storeName: string, key: IDBValidKey) => Promise<void>;
+    subscribe: (storeName: string, callback: (result?: any) => void) => () => void;
     error: string | null;
+};
+
+declare const DBProvider: ({ options, children }: {
+    options: IDBOptions;
+    children: ReactNode;
+}) => react_jsx_runtime.JSX.Element;
+declare const useDB: (options?: IDBOptions) => ReturnType<typeof useDatabase>;
+/**
+ * Hook to watch a specific store.
+ * Automatically re-refetches whenever insert/update/remove is called on that store.
+ */
+declare const useWatchDB: <T>(storeName: string, predicate?: (item: T) => boolean) => {
+    data: T[];
+    first: () => NonNullable<T> | null;
+    last: () => NonNullable<T> | null;
+    length: number;
+    isEmpty: boolean;
+    [Symbol.iterator]: () => Generator<T, void, unknown>;
 };
 
 type AnchorOptions = {
@@ -206,6 +226,24 @@ declare const useCalendar: (range?: number, dayFormat?: CalendarWeekdayFormat, m
     }[];
     next: () => void;
     prev: () => void;
+};
+
+type CarouselOptions = {
+    total: number;
+    initialIndex?: number;
+    loop?: boolean;
+    useWheel?: boolean;
+    useKeys?: boolean;
+    onChange?: (index: number) => void;
+};
+declare const useCarousel: ({ total, initialIndex, loop, useWheel, useKeys, onChange }: CarouselOptions) => {
+    index: number;
+    next: () => void;
+    prev: () => void;
+    goTo: (i: number) => void;
+    isFirst: boolean;
+    isLast: boolean;
+    progress: number;
 };
 
 declare const useDebounce: <T extends (...args: any[]) => void>(func: T, delay: number) => (...args: Parameters<T>) => void;
@@ -317,6 +355,8 @@ declare const useMorph: (sourceRef: RefObject<HTMLElement | null>, isReady: bool
     } | null;
     isMeasured: boolean;
 };
+
+declare const useMouseWheel: (callback: (direction: "next" | "prev") => void, active?: boolean) => void;
 
 type MutationCallback = (mutations: MutationRecord[], observer: MutationObserver) => void;
 declare const useMutationObserver: (target: HTMLElement | null, callback: MutationCallback, options?: MutationObserverInit) => void;
@@ -504,4 +544,4 @@ declare global {
     }
 }
 
-export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCommandActions, useDB, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useFacebookPixel, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMorph, useMounted, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useUploader, useWebSocket };
+export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, DBProvider as DatabaseProvider, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useFacebookPixel, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useUploader, useWatchDB, useWebSocket };

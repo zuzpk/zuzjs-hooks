@@ -8,11 +8,10 @@ declare global {
 }
 
 export type {
-    CalendarWeekdayFormat,
-    CalendarMonthFormat
-} from "./types"
+    CalendarMonthFormat, CalendarWeekdayFormat
+} from "./types";
 
-export { KeyCode, CropShape, AnchorType } from "./types"
+export { AnchorType, CropShape, KeyCode } from "./types";
 
 export {
     default as useCommandActions,
@@ -21,13 +20,18 @@ export {
 } from './useCommandActions';
 
 export {
-    default as useDB, type IDBOptions,
+    default as useDatabase, type IDBOptions,
     type IDBSchema
 } from './useDB';
+export {
+    DBProvider as DatabaseProvider, useDB, useWatchDB
+} from "./useDBProvider";
 
 export { default as useAnchorPosition } from './useAnchorPosition';
 
 export { default as useCalendar } from './useCalendar';
+
+export { default as useCarousel } from './useCarousel';
 
 export { default as useDebounce } from './useDebounce';
 
@@ -55,6 +59,8 @@ export {
 
 export { default as useMorph } from './useMorph';
 
+export { default as useMouseWheel } from './useMouseWheel';
+
 export { default as useMutationObserver, type MutationCallback } from './useMutationObserver';
 
 export { default as useNetworkStatus } from './useNetworkStatus';
@@ -74,11 +80,10 @@ export { default as useScrollPhysics } from './useScrollPhysics';
 
 export { default as useShortcuts } from './useShortcuts';
 
-export type { 
-    QueItem as UploadQueItem, 
-    Status as UploadStatus, 
-    Uploadify 
-} from './useUploader';
 export { default as useUploader } from './useUploader';
+export type {
+    Uploadify, QueItem as UploadQueItem,
+    Status as UploadStatus
+} from './useUploader';
 
 export { default as useWebSocket, type WebSocketOptions } from './useWebSocket';
