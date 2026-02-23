@@ -43,6 +43,8 @@ export { default as useDimensions } from './useDimensions';
 
 export { default as useFacebookPixel } from './useFacebookPixel';
 
+export { default as useFileSystem } from './useFileSystem';
+
 export { default as useGoogleTagManager } from './useGoogleTagManager';
 
 export { default as useImage } from './useImage';
@@ -56,6 +58,11 @@ export {
     type DataPoint, type LineChartProps, type UseLineChartDimensions,
     type UseLineChartReturn
 } from './useLineChart';
+
+export {
+    default as useMediaPlayer,
+    type MediaItem
+} from './useMediaPlayer';
 
 export { default as useMorph } from './useMorph';
 

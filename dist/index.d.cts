@@ -294,6 +294,23 @@ declare const useFacebookPixel: (pixelId?: string, debug?: boolean) => {
     trackCustom: (eventName: string, params?: Record<string, any>) => void;
 };
 
+declare const useFileSystem: () => {
+    write: (fileName: string, content: any, path?: string) => Promise<boolean>;
+    read: (fileName: string, path?: string) => Promise<File | null>;
+    remove: (name: string, path?: string, isFolder?: boolean) => Promise<boolean>;
+    list: (path?: string) => Promise<{
+        name: string;
+        kind: "file" | "directory";
+    }[]>;
+    getUsage: () => Promise<{
+        used: number;
+        total: number;
+        percent: number;
+    } | null>;
+    isBusy: boolean;
+    error: Error | null;
+};
+
 /**
  * Custom hook for Google gtag (Global Site Tag) tracking
  * @param id - Google Analytics tracking ID (e.g., 'G-XXXXXXXXXX')
@@ -345,6 +362,37 @@ interface LineChartProps {
     animated?: boolean;
 }
 declare const useLineChart: (data: DataPoint[], dimensions?: UseLineChartDimensions, padding?: number) => UseLineChartReturn;
+
+type MediaItem = {
+    url: string;
+    title: string;
+    artist?: string;
+    cover?: string;
+    isDash?: boolean;
+};
+declare const useMediaPlayer: (playlist: MediaItem[], initialItem?: MediaItem) => {
+    hasMedia: boolean;
+    mediaRef: react.RefObject<HTMLVideoElement | HTMLAudioElement | null>;
+    state: {
+        isPlaying: boolean;
+        isLoading: boolean;
+        progress: number;
+        duration: number;
+        volume: number;
+        isMuted: boolean;
+        currentItem: MediaItem | undefined;
+        currentIndex: number;
+    };
+    controls: {
+        togglePlay: () => void;
+        seek: (val: number) => void;
+        next: () => void;
+        prev: () => void;
+        setVolume: (val: number) => void;
+        setIsMuted: () => void;
+        setCurrentIndex: react.Dispatch<react.SetStateAction<number>>;
+    };
+};
 
 declare const useMorph: (sourceRef: RefObject<HTMLElement | null>, isReady: boolean) => {
     sourceRect: {
@@ -559,4 +607,4 @@ declare global {
     }
 }
 
-export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, DBProvider as DatabaseProvider, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useFacebookPixel, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
+export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, DBProvider as DatabaseProvider, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
