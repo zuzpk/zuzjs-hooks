@@ -473,6 +473,21 @@ type Shortcut = {
 };
 declare const useShortcuts: (shortcuts: Shortcut[], preventDefault?: boolean) => void;
 
+interface UseTimerProps {
+    duration: number;
+    autoStart?: boolean;
+    onProgress?: (percentage: number) => void;
+    onExpired?: () => void;
+}
+declare const useTimer: ({ duration, autoStart, onProgress, onExpired }: UseTimerProps) => {
+    progress: number;
+    isPaused: boolean;
+    isExpired: boolean;
+    pause: () => void;
+    resume: () => void;
+    reset: () => void;
+};
+
 declare enum Status {
     Error = -1,
     Idle = 0,
@@ -544,4 +559,4 @@ declare global {
     }
 }
 
-export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, DBProvider as DatabaseProvider, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useFacebookPixel, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useUploader, useWatchDB, useWebSocket };
+export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, DBProvider as DatabaseProvider, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useFacebookPixel, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };

@@ -80,6 +80,8 @@ export { default as useScrollPhysics } from './useScrollPhysics';
 
 export { default as useShortcuts } from './useShortcuts';
 
+export { default as useTimer } from './useTimer';
+
 export { default as useUploader } from './useUploader';
 export type {
     Uploadify, QueItem as UploadQueItem,
