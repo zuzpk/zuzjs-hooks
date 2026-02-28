@@ -283,6 +283,31 @@ declare const useDevice: () => {
     isDesktop: boolean;
 } & Dimensions;
 
+interface Position {
+    x: number;
+    y: number;
+}
+declare enum DragDirection {
+    x = "x",
+    y = "y",
+    xy = "xy"
+}
+type DragOptions = {
+    direction?: DragDirection;
+    snap?: number;
+    limits?: {
+        left?: number;
+        right?: number;
+        top?: number;
+        bottom?: number;
+    };
+};
+declare const useDrag: (dragOptions?: DragOptions) => {
+    position: Position;
+    onMouseDown: (event: React.MouseEvent) => void;
+    isDragging: boolean;
+};
+
 /**
  * Custom hook for Facebook Pixel tracking
  * @param pixelId - Facebook Pixel ID (e.g., '123456789012345')
@@ -302,6 +327,11 @@ declare const useFileSystem: () => {
         name: string;
         kind: "file" | "directory";
     }[]>;
+    getFile: (fileName: string, path?: string) => Promise<{
+        file: File;
+        handle: FileSystemFileHandle;
+        url: string;
+    } | null>;
     getUsage: () => Promise<{
         used: number;
         total: number;
@@ -584,17 +614,24 @@ declare const useUploader: (conf: Uploader) => {
     addToQue: (f: dynamic) => void;
 };
 
+type WebSocketHeaders = {
+    Authorization: string;
+};
 type WebSocketOptions = {
+    headers?: WebSocketHeaders & dynamic;
     onOpen?: (event: Event) => void;
     onClose?: (event: CloseEvent) => void;
     onRawMessage?: (event: MessageEvent) => void;
     onMessage?: (data: dynamic) => void;
     onError?: (event: Event) => void;
+    autoConnect?: boolean;
     reconnect?: boolean;
 };
 declare const useWebSocket: (url: string, options?: WebSocketOptions) => {
     isConnected: boolean;
     messages: any[];
+    connect: (websocketHeaders?: WebSocketHeaders) => void;
+    disconnect: () => void;
     sendMessage: (message: string | object) => void;
 };
 
@@ -607,4 +644,4 @@ declare global {
     }
 }
 
-export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, DBProvider as DatabaseProvider, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
+export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };

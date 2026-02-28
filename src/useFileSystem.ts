@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 const useFileSystem = () => {
     const [isBusy, setIsBusy] = useState(false);
     const [error, setError] = useState<Error | null>(null);
-
+    
     // Internal helper to get root or a specific directory
     const getHandle = useCallback(async (path?: string, create = false) => {
         let handle = await navigator.storage.getDirectory();
@@ -17,6 +17,23 @@ const useFileSystem = () => {
         return handle;
     }, []);
 
+    const getFile = useCallback(async (fileName: string, path?: string) => {
+        try {
+            const dir = await getHandle(path);
+            const fileHandle = await dir.getFileHandle(fileName);
+            const file = await fileHandle.getFile();
+            
+            // We return the file and a generated blob URL for immediate playback
+            return {
+                file,
+                handle: fileHandle,
+                url: URL.createObjectURL(file)
+            };
+        } catch (err) {
+            return null;
+        }
+    }, [getHandle]);
+
     // 1. Write: Supports Blob, ArrayBuffer, or String
     const write = useCallback(async (fileName: string, content: any, path?: string) => {
         setIsBusy(true);
@@ -25,8 +42,16 @@ const useFileSystem = () => {
             const dir = await getHandle(path, true);
             const fileHandle = await dir.getFileHandle(fileName, { create: true });
             const writable = await fileHandle.createWritable();
-            await writable.write(content);
-            await writable.close();
+
+            // Check if content is a stream (e.g., from file.stream() or a fetch response)
+            if (content instanceof ReadableStream) {
+                await content.pipeTo(writable);
+                // Note: pipeTo automatically closes the writable stream
+            } else {
+                await writable.write(content);
+                await writable.close();
+            }
+            
             return true;
         } catch (err: any) {
             setError(err);
@@ -92,7 +117,7 @@ const useFileSystem = () => {
         return null;
     }, []);
 
-    return { write, read, remove, list, getUsage, isBusy, error };
+    return { write, read, remove, list, getFile, getUsage, isBusy, error };
 };
 
 export default useFileSystem

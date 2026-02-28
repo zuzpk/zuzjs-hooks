@@ -1,13 +1,19 @@
 "use client"
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { dynamic } from "./types";
 
+type WebSocketHeaders = {
+    Authorization: string,
+}
+
 export type WebSocketOptions = {
+  headers?: WebSocketHeaders & dynamic,
   onOpen?: (event: Event) => void;
   onClose?: (event: CloseEvent) => void;
   onRawMessage?: (event: MessageEvent) => void;
   onMessage?: (data: dynamic ) => void;
   onError?: (event: Event) => void;
+  autoConnect?: boolean;
   reconnect?: boolean;
 };
 
@@ -17,9 +23,14 @@ const reconnectIntervals = new Map<string, number>(); // Store dynamic reconnect
 
 const useWebSocket = (url: string, options?: WebSocketOptions) => {
   
-  const { onOpen, onClose, onRawMessage, onMessage, onError, reconnect = true } = options || {};
+  const { 
+    headers, 
+    autoConnect = true,
+    reconnect = true,
+    onOpen, onClose, onRawMessage, onMessage, onError } = options || {};
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
+  const _headers = useRef<WebSocketHeaders | undefined>(headers)
 
   const getReconnectInterval = (url: string) => reconnectIntervals.get(url) ?? 2
 
@@ -35,7 +46,9 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
   };
 
   
-  const connect = useCallback(() => {
+  const connect = useCallback((websocketHeaders?: WebSocketHeaders) => {
+
+    if ( websocketHeaders ) _headers.current = websocketHeaders
 
     if (socketInstances.has(url)) {
       const Socket = socketInstances.get(url);
@@ -56,7 +69,7 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
     }
 
 
-    const socket = new WebSocket(url);
+    const socket = new WebSocket(url, _headers.current ? [`Authorization_${_headers.current.Authorization}`] : undefined);
 
     socketInstances.set(url, socket);
     listenersMap.set(url, []);
@@ -98,8 +111,14 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
     };
   }, [url, onOpen, onClose, onMessage, onError, reconnect]);
 
+  const disconnect = useCallback(() => {
+    socketInstances.get(url)?.close(1000);
+    socketInstances.delete(url);
+    setIsConnected(false);
+  }, [url]);
+
   useEffect(() => {
-    connect();
+    if ( autoConnect ) connect();
     return () => {
       if (listenersMap.get(url)?.length === 0) {
         socketInstances.get(url)?.close();
@@ -132,7 +151,7 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
     }
   }, [url]);
 
-  return { isConnected, messages, sendMessage };
+  return { isConnected, messages, connect, disconnect, sendMessage };
 };
 
 export default useWebSocket;
