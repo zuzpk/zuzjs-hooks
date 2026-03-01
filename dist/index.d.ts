@@ -511,17 +511,17 @@ declare const useResizeObserver: (ref: RefObject<HTMLElement | null> | HTMLEleme
 interface ScrollBreakpoint {
     [key: number]: () => void;
 }
-declare const useScrollbar: (speed: number, breakpoints?: ScrollBreakpoint) => {
+declare const useScrollbar: (speed?: number, breakpoints?: ScrollBreakpoint, smooth?: boolean) => {
     rootRef: react.RefObject<HTMLDivElement | null>;
     containerRef: react.RefObject<HTMLDivElement | null>;
     thumbY: react.RefObject<HTMLDivElement | null>;
     thumbX: react.RefObject<HTMLDivElement | null>;
-    scrollToTop: () => void | undefined;
-    scrollToBottom: () => void | undefined;
-    scrollToLeft: () => void | undefined;
-    scrollToRight: () => void | undefined;
     onScrollY: (e: React.MouseEvent) => void;
     onScrollX: (e: React.MouseEvent) => void;
+    scrollToTop: () => void;
+    scrollToBottom: () => void;
+    scrollToLeft: () => void;
+    scrollToRight: () => void;
 };
 
 type ScrollPhysicsOptions = {
@@ -644,4 +644,4 @@ declare global {
     }
 }
 
-export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
+export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };

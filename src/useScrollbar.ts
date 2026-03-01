@@ -1,81 +1,67 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import useMutationObserver from "./useMutationObserver";
-
 export interface ScrollBreakpoint {
-  [key: number]: () => void; // Example: { 15: () => console.log("Scrolled 15%") }
+  [key: number]: () => void;
 }
 
-const useScrollbar = (speed: number, breakpoints: ScrollBreakpoint = {}) => {
+const useScrollbar = (speed: number = 1, breakpoints: ScrollBreakpoint = {}, smooth: boolean = false) => {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const thumbY = useRef<HTMLDivElement | null>(null);
   const thumbX = useRef<HTMLDivElement | null>(null);
-  const SCROLL_SPEED = useMemo(() => speed ?? 1, [speed]); // default to 1x multiplier
-  const isDraggingY = useRef(false);
-  const isDraggingX = useRef(false);
-  const dragStartX = useRef(0);
-  const dragStartY = useRef(0);
-  const scrollStartY = useRef(0);
-  const scrollStartX = useRef(0);
-  // No need for thumbHeight/Width refs if calculating them dynamically
-  // const thumbHeight = useRef(30);
-  // const thumbWidth = useRef(30);
+  
+  const SCROLL_SPEED = useMemo(() => speed, [speed]);
+  const lerpFactor = 0.12; 
+  
+  const targetY = useRef(0);
+  const currentY = useRef(0);
+  const targetX = useRef(0);
+  const currentX = useRef(0);
+  
+  const isRunning = useRef(false);
+  const isDragging = useRef(false);
 
-  // Animation frame ID for batching visual updates
   const animationFrameId = useRef<number | null>(null);
+  const physicsFrameId = useRef<number | null>(null);
 
   const updateThumb = useCallback(() => {
     if (!containerRef.current || !thumbY.current || !thumbX.current) return;
 
-    const { clientHeight, scrollHeight, scrollTop, clientWidth, scrollWidth, scrollLeft } = containerRef.current;
+    const { clientHeight, scrollHeight, clientWidth, scrollWidth } = containerRef.current;
 
-    // Y thumb calculations and update
-    const actualThumbMinHeight = 30; // Min thumb size: 30px
-    const thumbSizeY = Math.max((clientHeight / scrollHeight) * clientHeight, actualThumbMinHeight);
+    // Use high-precision refs if the physics engine is running, otherwise fallback to DOM
+    const sTop = isRunning.current ? currentY.current : containerRef.current.scrollTop;
+    const sLeft = isRunning.current ? currentX.current : containerRef.current.scrollLeft;
+
+    // Y Thumb
+    const thumbSizeY = Math.max((clientHeight / scrollHeight) * clientHeight, 30);
     const maxThumbPosY = clientHeight - thumbSizeY;
-    const thumbPosY = (scrollTop / (scrollHeight - clientHeight)) * maxThumbPosY;
+    // Calculate position using the high-precision sTop
+    const thumbPosY = (sTop / (scrollHeight - clientHeight)) * maxThumbPosY;
 
     thumbY.current.style.height = `${thumbSizeY}px`;
-    // *** KEY CHANGE: Use transform for positioning ***
-    thumbY.current.style.transform = `translateY(${thumbPosY}px)`;
-    thumbY.current.style.willChange = 'transform, height'; // Hint for browser
+    // translate3d(0, y, 0) is smoother than translateY(y)
+    thumbY.current.style.transform = `translate3d(0, ${thumbPosY}px, 0)`;
 
-    // X thumb calculations and update
-    const actualThumbMinWidth = 30; // Min thumb size: 30px
-    const thumbSizeX = Math.max((clientWidth / scrollWidth) * clientWidth, actualThumbMinWidth);
+    // X Thumb
+    const thumbSizeX = Math.max((clientWidth / scrollWidth) * clientWidth, 30);
     const maxThumbPosX = clientWidth - thumbSizeX;
-    const thumbPosX = (scrollLeft / (scrollWidth - clientWidth)) * maxThumbPosX;
+    const thumbPosX = (sLeft / (scrollWidth - clientWidth)) * maxThumbPosX;
 
     thumbX.current.style.width = `${thumbSizeX}px`;
-    // *** KEY CHANGE: Use transform for positioning ***
-    thumbX.current.style.transform = `translateX(${thumbPosX}px)`;
-    thumbX.current.style.willChange = 'transform, width'; // Hint for browser
+    thumbX.current.style.transform = `translate3d(${thumbPosX}px, 0, 0)`;
 
-    // Handle --no-y and --no-x classes (consider if these are strictly needed on every frame)
-    // These might still cause reflows, but less frequently than 'top'/'left'
-    if (scrollHeight <= clientHeight && rootRef.current) { // Use scrollHeight <= clientHeight for accurate check
-        rootRef.current.classList.add(`--no-y`);
-    } else if (rootRef.current) {
-        rootRef.current.classList.remove(`--no-y`);
+    if (rootRef.current) {
+        rootRef.current.classList.toggle('--no-y', scrollHeight <= clientHeight);
+        rootRef.current.classList.toggle('--no-x', scrollWidth <= clientWidth);
     }
+  }, []);
 
-    if (scrollWidth <= clientWidth && rootRef.current) { // Use scrollWidth <= clientWidth for accurate check
-        rootRef.current.classList.add(`--no-x`);
-    } else if (rootRef.current) {
-        rootRef.current.classList.remove(`--no-x`);
-    }
-
-  }, []); // Dependencies can be added here if needed, but often not for core calculations
-
-  // *** NEW: Central function to request a visual update via requestAnimationFrame ***
   const requestVisualUpdate = useCallback(() => {
-    if (animationFrameId.current) {
-      cancelAnimationFrame(animationFrameId.current);
-    }
+    if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
     animationFrameId.current = requestAnimationFrame(() => {
       updateThumb();
-
       // Trigger breakpoints after the visual update for this frame
       if (containerRef.current) {
         const { scrollTop, scrollHeight, clientHeight, scrollLeft, scrollWidth, clientWidth } = containerRef.current;
@@ -93,157 +79,143 @@ const useScrollbar = (speed: number, breakpoints: ScrollBreakpoint = {}) => {
         });
       }
     });
-  }, [updateThumb, breakpoints]);
+  }, [updateThumb]);
 
-  const handleScroll = useCallback(() => {
+  const tick = useCallback(() => {
+    if (!containerRef.current || isDragging.current) {
+      isRunning.current = false;
+      return;
+    }
+
+    const diffY = targetY.current - currentY.current;
+    const diffX = targetX.current - currentX.current;
+    
+    // Apply LERP
+    currentY.current += diffY * lerpFactor;
+    currentX.current += diffX * lerpFactor;
+
+    // 1. Update the actual scroll position
+    containerRef.current.scrollTop = Math.round(currentY.current);
+    containerRef.current.scrollLeft = Math.round(currentX.current);
+
+    // 2. FORCE the thumb to update in the SAME frame
+    // Don't use requestVisualUpdate() here, call updateThumb() directly
+    updateThumb(); 
+
+    if (Math.abs(diffY) > 0.1 || Math.abs(diffX) > 0.1) {
+      physicsFrameId.current = requestAnimationFrame(tick);
+    } else {
+      // Snap to final target to prevent "near-miss" jumps
+      currentY.current = targetY.current;
+      currentX.current = targetX.current;
+      containerRef.current.scrollTop = targetY.current;
+      containerRef.current.scrollLeft = targetX.current;
+      updateThumb(); 
+      isRunning.current = false;
+    }
+    
+    window.dispatchEvent(new Event('scroll'));
+  }, [updateThumb, lerpFactor]);
+
+  const handleWheel = useCallback((e: WheelEvent) => {
     if (!containerRef.current) return;
-    // *** Call requestVisualUpdate instead of postScroll ***
+
+    const target = e.target as HTMLElement;
+    if (target.closest('.--allow-scroll')) return;
+
+    if (smooth) {
+      e.preventDefault(); 
+      const maxScrollY = containerRef.current.scrollHeight - containerRef.current.clientHeight;
+      const maxScrollX = containerRef.current.scrollWidth - containerRef.current.clientWidth;
+      
+      targetY.current = Math.max(0, Math.min(targetY.current + e.deltaY * SCROLL_SPEED, maxScrollY));
+      targetX.current = Math.max(0, Math.min(targetX.current + e.deltaX * SCROLL_SPEED, maxScrollX));
+
+      if (!isRunning.current) {
+        isRunning.current = true;
+        physicsFrameId.current = requestAnimationFrame(tick);
+      }
+    } else {
+      containerRef.current.scrollTop += e.deltaY * SCROLL_SPEED;
+      containerRef.current.scrollLeft += e.deltaX * SCROLL_SPEED;
+    }
+  }, [smooth, SCROLL_SPEED, tick]);
+
+  const handleNativeScroll = useCallback(() => {
+    if (!containerRef.current) return;
+    if (!isRunning.current) {
+      currentY.current = containerRef.current.scrollTop;
+      targetY.current = containerRef.current.scrollTop;
+      currentX.current = containerRef.current.scrollLeft;
+      targetX.current = containerRef.current.scrollLeft;
+    }
     requestVisualUpdate();
     window.dispatchEvent(new Event('scroll'));
   }, [requestVisualUpdate]);
 
-  // Dragging logic
+  // Dragging Handlers
   const onScrollY = (e: React.MouseEvent) => {
-    isDraggingY.current = true;
-    dragStartY.current = e.clientY;
-    scrollStartY.current = containerRef.current?.scrollTop || 0;
-    document.body.style.userSelect = "none";
-    if (rootRef.current) rootRef.current?.classList.add(`--scrolling`);
+    isDragging.current = true;
+    const startY = e.clientY;
+    const startScroll = containerRef.current?.scrollTop || 0;
+    const onMove = (me: MouseEvent) => {
+        if (!containerRef.current) return;
+        const ratio = containerRef.current.scrollHeight / containerRef.current.clientHeight;
+        containerRef.current.scrollTop = startScroll + (me.clientY - startY) * ratio;
+    };
+    const onUp = () => { isDragging.current = false; document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
   };
 
   const onScrollX = (e: React.MouseEvent) => {
-    isDraggingX.current = true;
-    dragStartX.current = e.clientX;
-    scrollStartX.current = containerRef.current?.scrollLeft || 0;
-    document.body.style.userSelect = "none";
-    if (rootRef.current) rootRef.current?.classList.add(`--scrolling`);
+    isDragging.current = true;
+    const startX = e.clientX;
+    const startScroll = containerRef.current?.scrollLeft || 0;
+    const onMove = (me: MouseEvent) => {
+        if (!containerRef.current) return;
+        const ratio = containerRef.current.scrollWidth / containerRef.current.clientWidth;
+        containerRef.current.scrollLeft = startScroll + (me.clientX - startX) * ratio;
+    };
+    const onUp = () => { isDragging.current = false; document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
   };
 
-  const handleDragMove = useCallback((e: MouseEvent) => {
-    if (!containerRef.current || (!isDraggingY.current && !isDraggingX.current)) return;
-
-    const { clientHeight, scrollHeight, clientWidth, scrollWidth } = containerRef.current;
-
-    if (isDraggingY.current) {
-      const maxScroll = scrollHeight - clientHeight;
-      const thumbCurrentHeight = thumbY.current?.clientHeight || 30; // Use actual thumb height
-      const maxThumbMove = clientHeight - thumbCurrentHeight;
-
-      const deltaY = e.clientY - dragStartY.current;
-      const newScrollTop = Math.min(
-        Math.max(scrollStartY.current + (deltaY / maxThumbMove) * maxScroll, 0),
-        maxScroll
-      );
-      containerRef.current.scrollTop = newScrollTop;
-      // *** No direct updateThumb here, the scroll event listener will trigger requestVisualUpdate ***
-    }
-    if (isDraggingX.current) {
-      const maxScrollX = scrollWidth - clientWidth;
-      const thumbCurrentWidth = thumbX.current?.clientWidth || 30; // Use actual thumb width
-      const maxThumbMoveX = clientWidth - thumbCurrentWidth;
-
-      const deltaX = e.clientX - dragStartX.current;
-      const newScrollLeft = Math.min(
-        Math.max(scrollStartX.current + (deltaX / maxThumbMoveX) * maxScrollX, 0),
-        maxScrollX
-      );
-      containerRef.current.scrollLeft = newScrollLeft;
-      // *** No direct updateThumb here, the scroll event listener will trigger requestVisualUpdate ***
-    }
-  }, []); // No dependencies needed if current values are always fresh
-
-  const handleDragEnd = () => {
-    isDraggingY.current = false;
-    isDraggingX.current = false;
-    document.body.style.userSelect = "";
-    if (rootRef.current) rootRef.current?.classList.remove(`--scrolling`);
-    if (animationFrameId.current) {
-      cancelAnimationFrame(animationFrameId.current); // Clear any pending rAF
+  // Physics-aware Scroll Helpers
+  const triggerPhysics = () => {
+    if (!isRunning.current) {
+        isRunning.current = true;
+        physicsFrameId.current = requestAnimationFrame(tick);
     }
   };
 
-  const scrollToTop = () => containerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  const scrollToBottom = () => containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: "smooth" });
-  const scrollToLeft = () => containerRef.current?.scrollTo({ left: 0, behavior: "smooth" });
-  const scrollToRight = () => containerRef.current?.scrollTo({ left: containerRef.current.scrollWidth, behavior: "smooth" });
+  const scrollToTop = () => { targetY.current = 0; triggerPhysics(); };
+  const scrollToBottom = () => { targetY.current = containerRef.current?.scrollHeight || 0; triggerPhysics(); };
+  const scrollToLeft = () => { targetX.current = 0; triggerPhysics(); };
+  const scrollToRight = () => { targetX.current = containerRef.current?.scrollWidth || 0; triggerPhysics(); };
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      // *** Passive listener means preventDefault is often not needed/effective here ***
-      // e.preventDefault();
-      // e.stopPropagation();
-
-      if (!containerRef.current) return;
-
-      const { scrollTop, scrollHeight, clientHeight, scrollLeft, scrollWidth, clientWidth } = containerRef.current;
-
-      let newScrollTop = scrollTop;
-      let newScrollLeft = scrollLeft;
-      let changed = false;
-
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-        const maxScrollY = scrollHeight - clientHeight;
-        newScrollTop = scrollTop + e.deltaY * SCROLL_SPEED;
-        newScrollTop = Math.max(0, Math.min(newScrollTop, maxScrollY));
-        if (newScrollTop !== scrollTop) {
-          containerRef.current.scrollTop = newScrollTop;
-          changed = true;
-        }
-      } else { // Prefer deltaX if it's larger or if deltaY is 0
-        const maxScrollX = scrollWidth - clientWidth;
-        newScrollLeft = scrollLeft + e.deltaX * SCROLL_SPEED;
-        newScrollLeft = Math.max(0, Math.min(newScrollLeft, maxScrollX));
-        if (newScrollLeft !== scrollLeft) {
-          containerRef.current.scrollLeft = newScrollLeft;
-          changed = true;
-        }
-      }
-
-      // *** Only request update if scroll position actually changed ***
-      if (changed) {
-        requestVisualUpdate();
-      }
-    };
-
-    window.addEventListener("resize", requestVisualUpdate); // Use requestVisualUpdate for resize
-    container.addEventListener("scroll", handleScroll, { passive: true }); // Make scroll passive if you don't preventDefault
-    container.addEventListener("wheel", handleWheel, { passive: true }); // Keep passive for wheel
-
-    document.addEventListener("mousemove", handleDragMove);
-    document.addEventListener("mouseup", handleDragEnd);
-
-    // Initial update
-    requestVisualUpdate(); // Use requestVisualUpdate for initial render
-
+    window.addEventListener("resize", requestVisualUpdate);
+    container.addEventListener("scroll", handleNativeScroll, { passive: true });
+    container.addEventListener("wheel", handleWheel, { passive: !smooth });
+    requestVisualUpdate();
     return () => {
       window.removeEventListener("resize", requestVisualUpdate);
-      container.removeEventListener("scroll", handleScroll);
-      container.removeEventListener("wheel", handleWheel); // Corrected: remove from container
-      document.removeEventListener("mousemove", handleDragMove);
-      document.removeEventListener("mouseup", handleDragEnd);
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current); // Clean up any pending rAF
-      }
+      container.removeEventListener("scroll", handleNativeScroll);
+      container.removeEventListener("wheel", handleWheel);
+      if (physicsFrameId.current) cancelAnimationFrame(physicsFrameId.current);
     };
-  }, [handleScroll, handleDragMove, requestVisualUpdate, SCROLL_SPEED]); // Added SCROLL_SPEED to deps
+  }, [handleNativeScroll, handleWheel, requestVisualUpdate, smooth]);
 
-  // *** NEW: Hook useMutationObserver to call requestVisualUpdate ***
   useMutationObserver(containerRef.current, requestVisualUpdate);
 
   return {
-    rootRef,
-    containerRef,
-    thumbY,
-    thumbX,
-    scrollToTop,
-    scrollToBottom,
-    scrollToLeft,
-    scrollToRight,
-    onScrollY,
-    onScrollX,
+    rootRef, containerRef, thumbY, thumbX,
+    onScrollY, onScrollX,
+    scrollToTop, scrollToBottom, scrollToLeft, scrollToRight
   };
 };
 

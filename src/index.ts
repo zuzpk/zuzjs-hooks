@@ -83,7 +83,7 @@ export {
 
 export { default as useResizeObserver } from './useResizeObserver';
 
-export { default as useScrollbar } from './useScrollbar';
+export { default as useScrollbar, type ScrollBreakpoint } from './useScrollbar';
 
 export { default as useScrollPhysics } from './useScrollPhysics';
 
