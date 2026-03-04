@@ -283,6 +283,14 @@ declare const useDevice: () => {
     isDesktop: boolean;
 } & Dimensions;
 
+/**
+ * Sets Document Title and on Page unloads resets title to old/current
+ */
+declare const useDocumentTitle: ({ title, defaultTitle }: {
+    title: string;
+    defaultTitle?: string;
+}) => void;
+
 interface Position {
     x: number;
     y: number;
@@ -644,4 +652,4 @@ declare global {
     }
 }
 
-export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
+export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDocumentTitle, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };

@@ -41,6 +41,8 @@ export { default as useDevice } from './useDevice';
 
 export { default as useDimensions } from './useDimensions';
 
+export { default as useDocumentTitle } from './useDocumentTitle';
+
 export { DragDirection, default as useDrag, type DragOptions } from './useDrag';
 
 export { default as useFacebookPixel } from './useFacebookPixel';
