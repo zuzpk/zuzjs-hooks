@@ -445,7 +445,7 @@ declare const useMorph: (sourceRef: RefObject<HTMLElement | null>, isReady: bool
 declare const useMouseWheel: (callback: (direction: "next" | "prev") => void, active?: boolean) => void;
 
 type MutationCallback = (mutations: MutationRecord[], observer: MutationObserver) => void;
-declare const useMutationObserver: (target: HTMLElement | null, callback: MutationCallback, options?: MutationObserverInit) => void;
+declare const useMutationObserver: (target: HTMLElement | null | RefObject<HTMLElement | null>, callback: MutationCallback, options?: MutationObserverInit) => void;
 
 declare const useNetworkStatus: () => boolean | null;
 

@@ -52,9 +52,13 @@ const useScrollbar = (speed: number = 1, breakpoints: ScrollBreakpoint = {}, smo
     thumbX.current.style.width = `${thumbSizeX}px`;
     thumbX.current.style.transform = `translate3d(${thumbPosX}px, 0, 0)`;
 
+    const canScrollY = scrollHeight > clientHeight + 1;
+    const canScrollX = scrollWidth > clientWidth + 1;
+    
     if (rootRef.current) {
-        rootRef.current.classList.toggle('--no-y', scrollHeight <= clientHeight);
-        rootRef.current.classList.toggle('--no-x', scrollWidth <= clientWidth);
+        // console.log(rootRef.current, scrollHeight, clientHeight, scrollWidth, clientWidth);
+        rootRef.current.classList.toggle('--no-y', !canScrollY);
+        rootRef.current.classList.toggle('--no-x', !canScrollX);
     }
   }, []);
 
@@ -210,7 +214,7 @@ const useScrollbar = (speed: number = 1, breakpoints: ScrollBreakpoint = {}, smo
     };
   }, [handleNativeScroll, handleWheel, requestVisualUpdate, smooth]);
 
-  useMutationObserver(containerRef.current, requestVisualUpdate);
+  useMutationObserver(containerRef, requestVisualUpdate);
 
   return {
     rootRef, containerRef, thumbY, thumbX,
