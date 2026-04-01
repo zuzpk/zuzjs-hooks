@@ -45,6 +45,16 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
     reconnectIntervals.set(url, 2); // Reset to 1s on successful reconnect
   };
 
+  const parseIncomingData = useCallback((data: MessageEvent["data"]) => {
+    if (typeof data !== "string") return data;
+
+    try {
+      return JSON.parse(data);
+    } catch {
+      return data;
+    }
+  }, []);
+
   
   const connect = useCallback((websocketHeaders?: WebSocketHeaders) => {
 
@@ -59,7 +69,7 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
 
           onRawMessage?.(event);
 
-          const raw = JSON.parse(Buffer.isBuffer(event) ? event.toString(`utf8`) : `string` == typeof event ? event : event.data)
+          const raw = parseIncomingData(event.data)
           onMessage?.(raw);
         
           listenersMap.get(url)?.forEach((listener) => listener(event));
@@ -86,7 +96,7 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
 
       onRawMessage?.(event);
 
-      const raw = JSON.parse(Buffer.isBuffer(event) ? event.toString(`utf8`) : `string` == typeof event ? event : event.data)
+      const raw = parseIncomingData(event.data)
       onMessage?.(raw);
       
       listenersMap.get(url)?.forEach((listener) => listener(event));
@@ -109,7 +119,7 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
         }, delay);
       }
     };
-  }, [url, onOpen, onClose, onMessage, onError, reconnect]);
+  }, [url, onOpen, onClose, onRawMessage, onMessage, onError, reconnect, parseIncomingData]);
 
   const disconnect = useCallback(() => {
     socketInstances.get(url)?.close(1000);

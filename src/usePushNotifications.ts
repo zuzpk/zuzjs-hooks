@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
 import { urlBase64ToUint8Array } from "@zuzjs/core";
+import { useCallback, useEffect, useState } from "react";
 
 export type PushSubscriptionMeta = {
   endpoint: string;
@@ -121,11 +121,29 @@ const usePushNotifications = (
             return null;
         }
 
+        if (typeof vapidPublicKey !== 'string' || vapidPublicKey.trim().length === 0) {
+            setError('Invalid VAPID public key');
+            return null;
+        }
+
         setIsLoading(true);
         setError(null);
 
         try {
-            const permissionResult = await Notification.requestPermission();
+            const permissionResultRaw = await Notification.requestPermission();
+            const permissionResult: NotificationPermission =
+                permissionResultRaw === 'granted' ||
+                permissionResultRaw === 'denied' ||
+                permissionResultRaw === 'default'
+                    ? permissionResultRaw
+                    : 'default';
+
+            if (permissionResultRaw !== permissionResult) {
+                setError(`Unexpected notification permission result: ${String(permissionResultRaw)}`);
+                setIsLoading(false);
+                return null;
+            }
+
             setPermission(permissionResult);
 
             if (permissionResult !== 'granted') {
@@ -134,7 +152,7 @@ const usePushNotifications = (
                 return null;
             }
 
-            const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey) as BufferSource;
+            const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey.trim()) as BufferSource;
             const pushSubscription = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey,

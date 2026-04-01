@@ -18,6 +18,7 @@
     "stripInternal": true,
     "removeComments": false,
     "allowImportingTsExtensions": false,
+    "ignoreDeprecations": "6.0",
     "noEmit": false
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
