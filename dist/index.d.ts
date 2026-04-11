@@ -152,7 +152,13 @@ type IDBOptions = {
     name: string;
     version: number;
     meta: IDBMeta[];
+    /**
+     * Called when an "object store not found" corruption is detected on any DB
+     * operation. Typically used by DBProvider to wipe + reload automatically.
+     */
+    onCorrupted?: (source: string) => void;
 };
+declare const isMissingStoreError: (error: unknown) => boolean;
 interface IDBMeta {
     name: string;
     config: {
@@ -177,14 +183,46 @@ declare const useDatabase: (options: IDBOptions) => {
     update_one: <T extends Object>(storeName: string, value: Partial<T>, key: IDBValidKey) => Promise<void>;
     remove: (storeName: string, key: IDBValidKey) => Promise<void>;
     subscribe: (storeName: string, callback: (result?: any) => void) => () => void;
+    dbUnavailable: boolean;
     error: string | null;
 };
 
-declare const DBProvider: ({ options, children }: {
+/**
+ * sessionStorage key written before a self-heal reload.
+ * Read by useDBHealed() to surface a one-time notification after the page
+ * comes back up.
+ */
+declare const DB_HEALED_KEY = "zuzjs.db.healed";
+declare const DB_HEAL_STATE_KEY = "zuzjs.db.heal.state";
+declare const DB_HEAL_BLOCKED_KEY = "zuzjs.db.heal.blocked";
+declare const DBProvider: ({ options, children, onCorrupted, selfHeal }: {
     options: IDBOptions;
     children: ReactNode;
+    /**
+     * Enables the built-in delete-and-reload recovery flow.
+     * Disabled by default because automatic reloads can be too aggressive for
+     * transient browser IndexedDB failures.
+     */
+    selfHeal?: boolean;
+    /**
+     * Override the default self-heal behaviour.
+     * Called with the operation source string when an "object store not found"
+     * error is detected.
+     */
+    onCorrupted?: (source: string) => void;
 }) => react_jsx_runtime.JSX.Element;
 declare const useDB: (options?: IDBOptions) => ReturnType<typeof useDatabase>;
+/**
+ * Returns heal metadata when the page was reloaded after an automatic
+ * IndexedDB self-heal. Clears the sessionStorage marker on first read so the
+ * value is only truthy once per recovery cycle.
+ */
+declare const useDBHealed: () => {
+    healed: boolean;
+    blocked: boolean;
+    source: string | null;
+    dbName: string | null;
+};
 /**
  * Hook to watch a specific store.
  * Automatically re-refetches whenever insert/update/remove is called on that store.
@@ -652,4 +690,4 @@ declare global {
     }
 }
 
-export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDocumentTitle, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
+export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, DB_HEALED_KEY, DB_HEAL_BLOCKED_KEY, DB_HEAL_STATE_KEY, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, isMissingStoreError, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDBHealed, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDocumentTitle, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };

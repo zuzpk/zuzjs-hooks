@@ -21,10 +21,12 @@ export {
 
 export {
     default as useDatabase, type IDBOptions,
-    type IDBSchema
+    type IDBSchema,
+    isMissingStoreError
 } from './useDB';
 export {
-    DBProvider as DatabaseProvider, useDB, useWatchDB
+    DBProvider as DatabaseProvider, useDB, useWatchDB,
+    DB_HEALED_KEY, DB_HEAL_STATE_KEY, DB_HEAL_BLOCKED_KEY, useDBHealed
 } from "./useDBProvider";
 
 export { default as useAnchorPosition } from './useAnchorPosition';

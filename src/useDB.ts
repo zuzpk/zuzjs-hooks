@@ -10,6 +10,20 @@ export type IDBOptions = {
     name: string;
     version: number;
     meta: IDBMeta[];
+    /**
+     * Called when an "object store not found" corruption is detected on any DB
+     * operation. Typically used by DBProvider to wipe + reload automatically.
+     */
+    onCorrupted?: (source: string) => void;
+}
+
+export const isMissingStoreError = (error: unknown): boolean => {
+    const msg = String((error as any)?.message ?? (error as any)?.name ?? error ?? "")
+    return (
+        msg.includes("object stores was not found") ||
+        msg.includes("One of the specified object stores was not found") ||
+        msg.includes("No objectStore named")
+    )
 }
 
 export interface IDBMeta {
@@ -26,10 +40,21 @@ export interface IDBSchema {
 
 const useDatabase = (options: IDBOptions) => {
 
-    const { name, version, meta } = options;
+    const { name, version, meta, onCorrupted } = options;
     const db = useRef<IDBDatabase | null>(null);
     const [ error, setError ] = useState<string | null>(null);
+    const [ dbUnavailable, setDBUnavailable ] = useState(false);
     const listeners = useRef<Map<string, Set<(result?: any) => void>>>(new Map());
+
+    const markUnavailable = useCallback((source: string, err?: unknown) => {
+        setDBUnavailable(true)
+        const nextMessage = String((err as any)?.message ?? err ?? `IndexedDB is unavailable`)
+        setError(prev => prev ?? `${source}: ${nextMessage}`)
+    }, [])
+
+    const markAvailable = useCallback(() => {
+        setDBUnavailable(false)
+    }, [])
 
     const notify = useCallback((storeName: string, result?: any) => {
         listeners.current.get(storeName)?.forEach(cb => cb(result));
@@ -60,24 +85,28 @@ const useDatabase = (options: IDBOptions) => {
 
         openRequest.onsuccess = (event) => {
             db.current = (event.target as IDBOpenDBRequest).result
+            markAvailable()
         }
 
         openRequest.onerror = () => {
+            markUnavailable(`open`, openRequest.error)
             setError('Failed to open database');
         };
 
         return () => db.current?.close()
 
-    }, [name, version])
+    }, [name, version, markAvailable, markUnavailable])
 
     const connect = () => new Promise<IDBDatabase>((resolve, reject) => {
         if ( db.current ) resolve(db.current)
         const request = indexedDB.open(name, +(version.toString().replace(/\./g, ``)))
         request.onsuccess = (event) => {
             db.current = (event.target as IDBOpenDBRequest).result
+            markAvailable()
             resolve(db.current)
         };
         request.onerror = (event) => {
+            markUnavailable(`connect`, request.error ?? event)
             reject([`Failed to open database`, event].join(`\n`));
         };
     })
@@ -105,6 +134,10 @@ const useDatabase = (options: IDBOptions) => {
             };
         })
         .catch(err => {
+            if ( isMissingStoreError(err) ) {
+                markUnavailable(`getStore:${storeName}`, err)
+                onCorrupted?.(`getStore:${storeName}`)
+            }
             reject(err.message || 'Database either corrupted or not initialized');
         })
     })
@@ -124,7 +157,10 @@ const useDatabase = (options: IDBOptions) => {
             };
         })
         .catch(err => {
-            console.log(`[getAll]`, err)
+            if ( isMissingStoreError(err) ) {
+                markUnavailable(`getAll:${storeName}`, err)
+                onCorrupted?.(`getAll:${storeName}`)
+            }
             reject('Database either corrupted or not initialized');
         })
     })
@@ -145,7 +181,10 @@ const useDatabase = (options: IDBOptions) => {
             };
         })
         .catch(err => {
-            console.log(`[getByID]`, err)
+            if ( isMissingStoreError(err) ) {
+                markUnavailable(`getByID:${storeName}`, err)
+                onCorrupted?.(`getByID:${storeName}`)
+            }
             reject('Database either corrupted or not initialized');
         })
     })
@@ -167,6 +206,10 @@ const useDatabase = (options: IDBOptions) => {
             };
         })
         .catch(err => {
+            if ( isMissingStoreError(err) ) {
+                markUnavailable(`insert:${storeName}`, err)
+                onCorrupted?.(`insert:${storeName}`)
+            }
             reject(err.message || 'Database either corrupted or not initialized');
         })
 
@@ -198,6 +241,10 @@ const useDatabase = (options: IDBOptions) => {
             };
         })
         .catch(err => {
+            if ( isMissingStoreError(err) ) {
+                markUnavailable(`update_one:${storeName}`, err)
+                onCorrupted?.(`update_one:${storeName}`)
+            }
             reject('Database either corrupted or not initialized');
         })
     })
@@ -216,8 +263,11 @@ const useDatabase = (options: IDBOptions) => {
             };
         })
         .catch(err => {
+            if ( isMissingStoreError(err) ) {
+                markUnavailable(`update:${storeName}`, err)
+                onCorrupted?.(`update:${storeName}`)
+            }
             reject(`UPDATE Failed. ${err}`);
-            // reject('Database either corrupted or not initialized');
         })
     })
 
@@ -231,7 +281,10 @@ const useDatabase = (options: IDBOptions) => {
             };
         })
         .catch(err => {
-            console.log(err)
+            if ( isMissingStoreError(err) ) {
+                markUnavailable(`remove:${storeName}`, err)
+                onCorrupted?.(`remove:${storeName}`)
+            }
             reject(`Delete failed from ${storeName} with key: ${key}`)
         })
     })
@@ -245,6 +298,7 @@ const useDatabase = (options: IDBOptions) => {
         update_one,
         remove,
         subscribe,
+        dbUnavailable,
         error
     }
 
