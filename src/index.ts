@@ -20,13 +20,11 @@ export {
 } from './useCommandActions';
 
 export {
-    default as useDatabase, type IDBOptions,
-    type IDBSchema,
-    isMissingStoreError
+    isMissingStoreError, default as useDatabase, type IDBOptions,
+    type IDBSchema
 } from './useDB';
 export {
-    DBProvider as DatabaseProvider, useDB, useWatchDB,
-    DB_HEALED_KEY, DB_HEAL_STATE_KEY, DB_HEAL_BLOCKED_KEY, useDBHealed
+    DBProvider as DatabaseProvider, DB_HEAL_BLOCKED_KEY, DB_HEAL_STATE_KEY, DB_HEALED_KEY, useDB, useDBHealed, useWatchDB
 } from "./useDBProvider";
 
 export { default as useAnchorPosition } from './useAnchorPosition';
@@ -34,6 +32,8 @@ export { default as useAnchorPosition } from './useAnchorPosition';
 export { default as useCalendar } from './useCalendar';
 
 export { default as useCarousel } from './useCarousel';
+
+export { default as useCodeLens } from './useCodeLens';
 
 export { default as useDebounce } from './useDebounce';
 

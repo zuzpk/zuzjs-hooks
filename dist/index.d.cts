@@ -1,5 +1,5 @@
 import * as react from 'react';
-import { RefObject, ReactNode } from 'react';
+import { RefObject, ReactNode, CSSProperties } from 'react';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { CancelTokenSource } from '@zuzjs/core';
 
@@ -282,6 +282,23 @@ declare const useCarousel: ({ total, initialIndex, loop, useWheel, useKeys, onCh
     isFirst: boolean;
     isLast: boolean;
     progress: number;
+};
+
+type LensLayer = 'SHADOW' | 'BODY' | 'BORDER' | 'LABEL' | null;
+interface ManualLensStyles extends CSSProperties {
+    info?: string;
+    title?: string;
+}
+declare const useCodeLens: (manualStyles?: Partial<Record<LensLayer & string, ManualLensStyles>>) => {
+    rootRef: react.RefObject<HTMLDivElement | null>;
+    isActive: boolean;
+    setIsActive: react.Dispatch<react.SetStateAction<boolean>>;
+    hoveredLayer: LensLayer;
+    setHoveredLayer: react.Dispatch<react.SetStateAction<LensLayer>>;
+    focusedLayer: LensLayer;
+    setFocusedLayer: react.Dispatch<react.SetStateAction<LensLayer>>;
+    styles: CSSProperties | null;
+    toggleLens: () => void;
 };
 
 declare const useDebounce: <T extends (...args: any[]) => void>(func: T, delay: number) => (...args: Parameters<T>) => void;
@@ -690,4 +707,4 @@ declare global {
     }
 }
 
-export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, DB_HEALED_KEY, DB_HEAL_BLOCKED_KEY, DB_HEAL_STATE_KEY, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, isMissingStoreError, useAnchorPosition, useCalendar, useCarousel, useCommandActions, useDB, useDBHealed, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDocumentTitle, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
+export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, DB_HEALED_KEY, DB_HEAL_BLOCKED_KEY, DB_HEAL_STATE_KEY, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, isMissingStoreError, useAnchorPosition, useCalendar, useCarousel, useCodeLens, useCommandActions, useDB, useDBHealed, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDocumentTitle, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
