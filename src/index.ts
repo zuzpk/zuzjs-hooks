@@ -33,7 +33,10 @@ export { default as useCalendar } from './useCalendar';
 
 export { default as useCarousel } from './useCarousel';
 
-export { default as useCodeLens } from './useCodeLens';
+export {
+    default as useCodeLens, type LensAvailability, type LensElementDimensions,
+    type LensExplodedTreeNode, type LensExtractedElement, type LensExtractedNode, type LensLayer
+} from './useCodeLens';
 
 export { default as useDebounce } from './useDebounce';
 
@@ -64,6 +67,22 @@ export {
     type DataPoint, type LineChartProps, type UseLineChartDimensions,
     type UseLineChartReturn
 } from './useLineChart';
+
+export {
+    default as useLocalStorage,
+    type LocalStorageAction,
+    type LocalStorageChange,
+    type LocalStorageEventSource,
+    type UseLocalStorageOptions
+} from './useLocalStorage';
+
+export {
+    default as useSessionStorage,
+    type SessionStorageAction,
+    type SessionStorageChange,
+    type SessionStorageEventSource,
+    type UseSessionStorageOptions
+} from './useSessionStorage';
 
 export {
     default as useMediaPlayer,

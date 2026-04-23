@@ -285,6 +285,107 @@ declare const useCarousel: ({ total, initialIndex, loop, useWheel, useKeys, onCh
 };
 
 type LensLayer = 'SHADOW' | 'BODY' | 'BORDER' | 'LABEL' | null;
+interface LensAvailability {
+    SHADOW: boolean;
+    BODY: boolean;
+    BORDER: boolean;
+    LABEL: boolean;
+}
+interface LensElementDimensions {
+    width: number;
+    height: number;
+    top: number;
+    left: number;
+    right: number;
+    bottom: number;
+    x: number;
+    y: number;
+}
+interface LensRelativeDimensions {
+    width: number;
+    height: number;
+    top: number;
+    left: number;
+    right: number;
+    bottom: number;
+    x: number;
+    y: number;
+}
+interface LensCompactDimensions {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+interface LensStyleSnapshot {
+    layout: Record<string, string>;
+    boxModel: Record<string, string>;
+    typography: Record<string, string>;
+    visual: Record<string, string>;
+    motion: Record<string, string>;
+    interactions: Record<string, string>;
+    customProperties: Record<string, string>;
+}
+interface LensPseudoStyleSnapshot {
+    content: string;
+    display: string;
+    width: string;
+    height: string;
+    color: string;
+    background: string;
+    border: string;
+    borderRadius: string;
+    boxShadow: string;
+    fontSize: string;
+    fontWeight: string;
+    opacity: string;
+    visibility: string;
+    position: string;
+    inset: string;
+}
+interface LensExtractedPseudoElement {
+    styles: LensPseudoStyleSnapshot;
+    styleSnapshot: LensStyleSnapshot;
+    rebuildStyles: CSSProperties;
+    selfDimensions: LensElementDimensions;
+    parentDimensions: LensElementDimensions;
+    relativeDimensions?: LensRelativeDimensions;
+    compactDimensions: LensCompactDimensions;
+}
+interface LensExtractedTextNode {
+    index: number;
+    type: 'text';
+    content: string;
+    parentIndex: number;
+    depth: number;
+}
+interface LensExplodedTreeNode {
+    element: LensExtractedElement;
+    children: LensExplodedTreeNode[];
+}
+interface LensExtractedElement {
+    index: number;
+    type: 'element';
+    path: string;
+    tagName: string;
+    id: string;
+    className: string;
+    text: string;
+    depth: number;
+    parentIndex: number | null;
+    children: LensExplodedTreeNode[];
+    styleSnapshot: LensStyleSnapshot;
+    rebuildStyles: CSSProperties;
+    selfDimensions: LensElementDimensions;
+    parentDimensions: LensElementDimensions | null;
+    relativeDimensions?: LensRelativeDimensions;
+    compactDimensions: LensCompactDimensions;
+    pseudo: {
+        before: LensExtractedPseudoElement | null;
+        after: LensExtractedPseudoElement | null;
+    };
+}
+type LensExtractedNode = LensExtractedElement | LensExtractedTextNode;
 interface ManualLensStyles extends CSSProperties {
     info?: string;
     title?: string;
@@ -298,6 +399,9 @@ declare const useCodeLens: (manualStyles?: Partial<Record<LensLayer & string, Ma
     focusedLayer: LensLayer;
     setFocusedLayer: react.Dispatch<react.SetStateAction<LensLayer>>;
     styles: CSSProperties | null;
+    availability: LensAvailability;
+    extractedElements: LensExtractedNode[];
+    explodedTree: LensExplodedTreeNode[];
     toggleLens: () => void;
 };
 
@@ -455,6 +559,46 @@ interface LineChartProps {
     animated?: boolean;
 }
 declare const useLineChart: (data: DataPoint[], dimensions?: UseLineChartDimensions, padding?: number) => UseLineChartReturn;
+
+type LocalStorageAction = "set" | "remove" | "clear";
+type LocalStorageEventSource = "internal" | "external";
+interface LocalStorageChange<T> {
+    action: LocalStorageAction;
+    key: string | null;
+    source: LocalStorageEventSource;
+    oldValue: T | undefined;
+    newValue: T | undefined;
+    rawOldValue: string | null;
+    rawNewValue: string | null;
+}
+interface UseLocalStorageOptions<T> {
+    defaultValue?: T;
+    storage?: Storage;
+    sync?: boolean;
+    serializer?: (value: T) => string;
+    deserializer?: (value: string) => T;
+    onChange?: (change: LocalStorageChange<T>) => void;
+}
+declare const useLocalStorage: <T>(key: string, options?: UseLocalStorageOptions<T>) => {
+    value: T | undefined;
+    setValue: (nextValue: T | ((currentValue: T | undefined) => T)) => T | undefined;
+    removeValue: () => void;
+    clear: () => void;
+    lastChange: LocalStorageChange<T> | null;
+};
+
+type SessionStorageAction = LocalStorageAction;
+type SessionStorageEventSource = LocalStorageEventSource;
+type SessionStorageChange<T> = LocalStorageChange<T>;
+interface UseSessionStorageOptions<T> extends UseLocalStorageOptions<T> {
+}
+declare const useSessionStorage: <T>(key: string, options?: UseSessionStorageOptions<T>) => {
+    value: T | undefined;
+    setValue: (nextValue: T | ((currentValue: T | undefined) => T)) => T | undefined;
+    removeValue: () => void;
+    clear: () => void;
+    lastChange: LocalStorageChange<T> | null;
+};
 
 type MediaItem = {
     url: string;
@@ -707,4 +851,4 @@ declare global {
     }
 }
 
-export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, DB_HEALED_KEY, DB_HEAL_BLOCKED_KEY, DB_HEAL_STATE_KEY, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LineChartProps, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type WebSocketOptions, isMissingStoreError, useAnchorPosition, useCalendar, useCarousel, useCodeLens, useCommandActions, useDB, useDBHealed, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDocumentTitle, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
+export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, DB_HEALED_KEY, DB_HEAL_BLOCKED_KEY, DB_HEAL_STATE_KEY, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LensAvailability, type LensElementDimensions, type LensExplodedTreeNode, type LensExtractedElement, type LensExtractedNode, type LensLayer, type LineChartProps, type LocalStorageAction, type LocalStorageChange, type LocalStorageEventSource, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type SessionStorageAction, type SessionStorageChange, type SessionStorageEventSource, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type UseLocalStorageOptions, type UseSessionStorageOptions, type WebSocketOptions, isMissingStoreError, useAnchorPosition, useCalendar, useCarousel, useCodeLens, useCommandActions, useDB, useDBHealed, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDocumentTitle, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useLocalStorage, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useSessionStorage, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
