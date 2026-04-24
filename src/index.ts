@@ -27,6 +27,8 @@ export {
     DBProvider as DatabaseProvider, DB_HEAL_BLOCKED_KEY, DB_HEAL_STATE_KEY, DB_HEALED_KEY, useDB, useDBHealed, useWatchDB
 } from "./useDBProvider";
 
+export { default as useAnchor } from './useAnchor';
+
 export { default as useAnchorPosition } from './useAnchorPosition';
 
 export { default as useCalendar } from './useCalendar';

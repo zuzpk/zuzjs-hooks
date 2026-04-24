@@ -236,6 +236,24 @@ declare const useWatchDB: <T>(storeName: string, predicate?: (item: T) => boolea
     [Symbol.iterator]: () => Generator<T, void, unknown>;
 };
 
+type AnchorPlacement = "top" | "bottom" | "left" | "right";
+type UseAnchorOptions = {
+    autoFlip?: boolean;
+    open?: boolean;
+    preferredPlacement?: AnchorPlacement;
+    margin?: number;
+    offset?: number;
+};
+declare const useAnchor: (children: ReactNode, anchorName?: string, options?: UseAnchorOptions) => {
+    root: ReactNode;
+    hovered: boolean;
+    anchorName: string;
+    canUseDocument: boolean;
+    floatingRef: react.RefObject<HTMLElement | null>;
+    floatingStyle: Partial<Record<string, string>>;
+    placement: AnchorPlacement;
+};
+
 type AnchorOptions = {
     offsetX?: number;
     offsetY?: number;
@@ -851,4 +869,4 @@ declare global {
     }
 }
 
-export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, DB_HEALED_KEY, DB_HEAL_BLOCKED_KEY, DB_HEAL_STATE_KEY, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LensAvailability, type LensElementDimensions, type LensExplodedTreeNode, type LensExtractedElement, type LensExtractedNode, type LensLayer, type LineChartProps, type LocalStorageAction, type LocalStorageChange, type LocalStorageEventSource, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type SessionStorageAction, type SessionStorageChange, type SessionStorageEventSource, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type UseLocalStorageOptions, type UseSessionStorageOptions, type WebSocketOptions, isMissingStoreError, useAnchorPosition, useCalendar, useCarousel, useCodeLens, useCommandActions, useDB, useDBHealed, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDocumentTitle, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useLocalStorage, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useSessionStorage, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
+export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, DB_HEALED_KEY, DB_HEAL_BLOCKED_KEY, DB_HEAL_STATE_KEY, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LensAvailability, type LensElementDimensions, type LensExplodedTreeNode, type LensExtractedElement, type LensExtractedNode, type LensLayer, type LineChartProps, type LocalStorageAction, type LocalStorageChange, type LocalStorageEventSource, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type SessionStorageAction, type SessionStorageChange, type SessionStorageEventSource, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type UseLocalStorageOptions, type UseSessionStorageOptions, type WebSocketOptions, isMissingStoreError, useAnchor, useAnchorPosition, useCalendar, useCarousel, useCodeLens, useCommandActions, useDB, useDBHealed, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDocumentTitle, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useLocalStorage, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useSessionStorage, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
