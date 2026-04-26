@@ -1,6 +1,8 @@
 import { addPropsToChildren } from "@zuzjs/core/react";
-import { ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useDelayed from "./useDelayed";
+
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 type AnchorPlacement = "top" | "bottom" | "left" | "right";
 
@@ -105,6 +107,8 @@ const getPlacementStyle = (placement: AnchorPlacement, offset: number): Partial<
             return {
                 positionAnchor: "",
                 left: "anchor(left)",
+                right: "auto",
+                top: "auto",
                 bottom: `calc(anchor(top) + ${offset}px)`,
             };
         case "left":
@@ -112,12 +116,16 @@ const getPlacementStyle = (placement: AnchorPlacement, offset: number): Partial<
                 positionAnchor: "",
                 right: `calc(anchor(left) + ${offset}px)`,
                 top: "anchor(top)",
+                left: "auto",
+                bottom: "auto",
             };
         case "right":
             return {
                 positionAnchor: "",
                 left: `calc(anchor(right) + ${offset}px)`,
                 top: "anchor(top)",
+                right: "auto",
+                bottom: "auto",
             };
         case "bottom":
         default:
@@ -125,6 +133,8 @@ const getPlacementStyle = (placement: AnchorPlacement, offset: number): Partial<
                 positionAnchor: "",
                 top: `calc(anchor(bottom) + ${offset}px)`,
                 left: "anchor(left)",
+                right: "auto",
+                bottom: "auto",
             };
     }
 };
@@ -147,15 +157,58 @@ const useAnchor = (
     const preferredPlacement = options?.preferredPlacement || "bottom";
     const gap = options?.margin ?? options?.offset ?? 0;
     const [placement, setPlacement] = useState<AnchorPlacement>(preferredPlacement);
-    const [floatingStyle, setFloatingStyle] = useState<Partial<Record<string, string>>>(() => {
-        const style = getPlacementStyle(preferredPlacement, gap);
-        return { ...style, positionAnchor: _anchorName };
-    });
-
-    useEffect(() => {
+    const floatingStyle = useMemo(() => {
         const style = getPlacementStyle(placement, gap);
-        setFloatingStyle({ ...style, positionAnchor: _anchorName });
+        return { ...style, positionAnchor: _anchorName };
     }, [_anchorName, gap, placement]);
+
+    const resolveNextPlacement = (currentPlacement: AnchorPlacement) => {
+        if (!floatingRef.current || !anchorElRef.current) {
+            return currentPlacement;
+        }
+
+        const hysteresisPx = 8;
+        const floatingRect = floatingRef.current.getBoundingClientRect();
+        const anchorRect = anchorElRef.current.getBoundingClientRect();
+        const orderedCandidates = placementOrderMap[preferredPlacement];
+
+        const projected = orderedCandidates.map((candidate) => {
+            const rect = getProjectedRect(candidate, anchorRect, floatingRect, gap);
+            const overflow = getOverflowScore(rect);
+            return { candidate, overflow };
+        });
+
+        const currentEntry = projected.find((entry) => entry.candidate === currentPlacement) || projected[0];
+        const firstThatFits = projected.find((entry) => entry.overflow === 0);
+
+        if (currentEntry.overflow === 0) {
+            return currentPlacement;
+        }
+
+        if (firstThatFits) {
+            return firstThatFits.candidate;
+        }
+
+        const bestFallback = projected.reduce((best, next) => {
+            if (next.overflow < best.overflow) return next;
+            if (next.overflow === best.overflow && next.candidate === currentPlacement) return next;
+            return best;
+        }, projected[0]);
+
+        if (bestFallback.overflow + hysteresisPx < currentEntry.overflow) {
+            return bestFallback.candidate;
+        }
+
+        return currentPlacement;
+    };
+
+    useIsomorphicLayoutEffect(() => {
+        if (!autoFlip || !open || !canUseDocument) {
+            return;
+        }
+
+        setPlacement((currentPlacement) => resolveNextPlacement(currentPlacement));
+    }, [autoFlip, canUseDocument, gap, open, preferredPlacement]);
 
     useEffect(() => {
         if (!autoFlip || !open || !canUseDocument || !floatingRef.current || !anchorElRef.current) {
@@ -163,39 +216,32 @@ const useAnchor = (
         }
 
         const resolvePlacement = () => {
-            if (!floatingRef.current || !anchorElRef.current) {
-                return;
+            setPlacement((currentPlacement) => resolveNextPlacement(currentPlacement));
+        };
+
+        let frameId: number | null = null;
+        const scheduleResolvePlacement = () => {
+            if (frameId !== null) {
+                cancelAnimationFrame(frameId);
             }
 
-            const floatingRect = floatingRef.current.getBoundingClientRect();
-            const anchorRect = anchorElRef.current.getBoundingClientRect();
-
-            const orderedCandidates = placementOrderMap[preferredPlacement];
-
-            const projected = orderedCandidates.map((candidate) => {
-                const rect = getProjectedRect(candidate, anchorRect, floatingRect, gap);
-                const overflow = getOverflowScore(rect);
-                return { candidate, overflow };
+            frameId = requestAnimationFrame(() => {
+                resolvePlacement();
+                frameId = null;
             });
-
-            const firstThatFits = projected.find((entry) => entry.overflow === 0)?.candidate;
-            const bestFallback = projected.reduce((best, next) =>
-                next.overflow < best.overflow ? next : best
-            , projected[0]).candidate;
-
-            const nextPlacement = firstThatFits || bestFallback;
-
-            setPlacement(nextPlacement);
         };
 
         resolvePlacement();
 
-        window.addEventListener("resize", resolvePlacement);
-        window.addEventListener("scroll", resolvePlacement, true);
+        window.addEventListener("resize", scheduleResolvePlacement);
+        window.addEventListener("scroll", scheduleResolvePlacement, true);
 
         return () => {
-            window.removeEventListener("resize", resolvePlacement);
-            window.removeEventListener("scroll", resolvePlacement, true);
+            if (frameId !== null) {
+                cancelAnimationFrame(frameId);
+            }
+            window.removeEventListener("resize", scheduleResolvePlacement);
+            window.removeEventListener("scroll", scheduleResolvePlacement, true);
         };
     }, [autoFlip, canUseDocument, gap, open, preferredPlacement]);
 

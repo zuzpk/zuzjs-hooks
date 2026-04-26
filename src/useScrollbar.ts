@@ -124,7 +124,8 @@ const useScrollbar = (speed: number = 1, breakpoints: ScrollBreakpoint = {}, smo
   const handleWheel = useCallback((e: WheelEvent) => {
     if (!containerRef.current) return;
 
-    const target = e.target as HTMLElement;
+    const target = e.target;
+    if (!(target instanceof Element)) return;
     if (target.closest('.--allow-scroll')) return;
 
     if (smooth) {

@@ -250,7 +250,9 @@ declare const useAnchor: (children: ReactNode, anchorName?: string, options?: Us
     anchorName: string;
     canUseDocument: boolean;
     floatingRef: react.RefObject<HTMLElement | null>;
-    floatingStyle: Partial<Record<string, string>>;
+    floatingStyle: {
+        positionAnchor: string;
+    };
     placement: AnchorPlacement;
 };
 
