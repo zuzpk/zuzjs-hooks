@@ -1,5 +1,5 @@
 import * as react from 'react';
-import { RefObject, ReactNode, CSSProperties } from 'react';
+import { RefObject, ReactNode, CSSProperties, DependencyList } from 'react';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { CancelTokenSource } from '@zuzjs/core';
 
@@ -474,26 +474,79 @@ interface Position {
     x: number;
     y: number;
 }
-declare enum DragDirection {
-    x = "x",
-    y = "y",
-    xy = "xy"
+type DragType = string | symbol;
+interface DragProbe<TItem = unknown> {
+    active: () => boolean;
+    payload: () => TItem | undefined;
+    channel: () => DragType | undefined;
+    origin: () => Position | null;
+    pointer: () => Position | null;
+    offset: () => Position | null;
 }
-type DragOptions = {
-    direction?: DragDirection;
-    snap?: number;
-    limits?: {
-        left?: number;
-        right?: number;
-        top?: number;
-        bottom?: number;
-    };
+type DragSpec<TItem = unknown, TCollected = Record<string, unknown>> = {
+    channel: DragType;
+    payload?: TItem | (() => TItem);
+    when?: boolean | ((probe: DragProbe<TItem>) => boolean);
+    dragDelay?: number;
+    observe?: (probe: DragProbe<TItem>) => TCollected;
+    onFinish?: (item: TItem | undefined, probe: DragProbe<TItem>) => void;
 };
-declare const useDrag: (dragOptions?: DragOptions) => {
-    position: Position;
-    onMouseDown: (event: React.MouseEvent) => void;
+type UseDragSpecFactory<TItem = unknown, TCollected = Record<string, unknown>> = () => DragSpec<TItem, TCollected>;
+interface DropProbe<TItem = unknown> {
+    canReceive: () => boolean;
+    hovering: () => boolean;
+    payload: () => TItem | undefined;
+    channel: () => DragType | undefined;
+    origin: () => Position | null;
+    pointer: () => Position | null;
+    offset: () => Position | null;
+}
+type DropSpec<TItem = unknown, TCollected = Record<string, unknown>> = {
+    accepts: DragType | DragType[];
+    canReceive?: (item: TItem | undefined, probe: DropProbe<TItem>) => boolean;
+    observe?: (probe: DropProbe<TItem>) => TCollected;
+    onHover?: (item: TItem | undefined, probe: DropProbe<TItem>) => void;
+    onReceive?: (item: TItem | undefined, probe: DropProbe<TItem>) => void;
+};
+type UseDropSpecFactory<TItem = unknown, TCollected = Record<string, unknown>> = () => DropSpec<TItem, TCollected>;
+
+declare function useDrag<TItem = unknown, TCollected = Record<string, unknown>>(specFactory: UseDragSpecFactory<TItem, TCollected>, deps?: DependencyList): [TCollected, (node: HTMLElement | null) => void];
+
+declare function useDrop<TItem = unknown, TCollected = Record<string, unknown>>(specFactory: UseDropSpecFactory<TItem, TCollected>, deps?: DependencyList): [TCollected, (node: HTMLElement | null) => void];
+
+type SortableId = string | number;
+type SortablePayload<TItem = unknown> = {
+    id: SortableId;
+    index: number;
+    item: TItem;
+};
+type SortableState<TItem = unknown> = {
     isDragging: boolean;
+    isOver: boolean;
+    canReceive: boolean;
+    draggingItem: SortablePayload<TItem> | undefined;
+    dragOffset: Position | null;
+    pointer: Position | null;
+    overIndex: number;
 };
+type SortableSpec<TItem = unknown, TCollected = Record<string, unknown>> = {
+    channel: DragType;
+    id: SortableId;
+    index: number;
+    payload: TItem;
+    accepts?: DragType | DragType[];
+    draggable?: boolean;
+    droppable?: boolean;
+    dragDelay?: number;
+    when?: boolean | ((probe: DragProbe<SortablePayload<TItem>>) => boolean);
+    canReceive?: (item: SortablePayload<TItem> | undefined, probe: DropProbe<SortablePayload<TItem>>) => boolean;
+    observe?: (state: SortableState<TItem>) => TCollected;
+    onMove?: (item: SortablePayload<TItem>, toIndex: number, probe: DropProbe<SortablePayload<TItem>>) => void;
+    onDrop?: (item: SortablePayload<TItem>, toIndex: number, probe: DropProbe<SortablePayload<TItem>>) => void;
+    onFinish?: (item: SortablePayload<TItem> | undefined, probe: DragProbe<SortablePayload<TItem>>) => void;
+};
+type UseSortableSpecFactory<TItem = unknown, TCollected = Record<string, unknown>> = () => SortableSpec<TItem, TCollected>;
+declare const useSortable: <TItem = unknown, TCollected = Record<string, unknown>>(specFactory: UseSortableSpecFactory<TItem, TCollected>, deps?: DependencyList) => [TCollected, (node: HTMLElement | null) => void];
 
 /**
  * Custom hook for Facebook Pixel tracking
@@ -871,4 +924,4 @@ declare global {
     }
 }
 
-export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, DB_HEALED_KEY, DB_HEAL_BLOCKED_KEY, DB_HEAL_STATE_KEY, type DataPoint, DBProvider as DatabaseProvider, DragDirection, type DragOptions, type IDBOptions, type IDBSchema, KeyCode, type LensAvailability, type LensElementDimensions, type LensExplodedTreeNode, type LensExtractedElement, type LensExtractedNode, type LensLayer, type LineChartProps, type LocalStorageAction, type LocalStorageChange, type LocalStorageEventSource, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type SessionStorageAction, type SessionStorageChange, type SessionStorageEventSource, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseLineChartDimensions, type UseLineChartReturn, type UseLocalStorageOptions, type UseSessionStorageOptions, type WebSocketOptions, isMissingStoreError, useAnchor, useAnchorPosition, useCalendar, useCarousel, useCodeLens, useCommandActions, useDB, useDBHealed, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDocumentTitle, useDrag, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useLocalStorage, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useSessionStorage, useShortcuts, useTimer, useUploader, useWatchDB, useWebSocket };
+export { AnchorType, type CalendarMonthFormat, type CalendarWeekdayFormat, type Command, type CommandActionProps, CropShape, DB_HEALED_KEY, DB_HEAL_BLOCKED_KEY, DB_HEAL_STATE_KEY, type DataPoint, DBProvider as DatabaseProvider, type DragProbe, type DragSpec, type DragType, type DropProbe, type DropSpec, type IDBOptions, type IDBSchema, KeyCode, type LensAvailability, type LensElementDimensions, type LensExplodedTreeNode, type LensExtractedElement, type LensExtractedNode, type LensLayer, type LineChartProps, type LocalStorageAction, type LocalStorageChange, type LocalStorageEventSource, type MediaItem, type MutationCallback, type PushNotificationsOptions, type PushNotificationsResult, type PushSubscriptionMeta, type ScrollBreakpoint, type SessionStorageAction, type SessionStorageChange, type SessionStorageEventSource, type SortableId, type SortablePayload, type SortableSpec, type SortableState, type QueItem as UploadQueItem, Status as UploadStatus, type Uploadify, type UseDragSpecFactory, type UseDropSpecFactory, type UseLineChartDimensions, type UseLineChartReturn, type UseLocalStorageOptions, type UseSessionStorageOptions, type UseSortableSpecFactory, type WebSocketOptions, isMissingStoreError, useAnchor, useAnchorPosition, useCalendar, useCarousel, useCodeLens, useCommandActions, useDB, useDBHealed, useDatabase, useDebounce, useMounted as useDelayed, useDevice, useDimensions, useDocumentTitle, useDrag, useDrop, useFacebookPixel, useFileSystem, useGtag as useGoogleTagManager, useImage, useImageCropper, useIntersectionObserver, useLineChart, useLocalStorage, useMediaPlayer, useMorph, useMounted, useMouseWheel, useMutationObserver, useNetworkStatus, useNextInterval, usePushNotifications, useResizeObserver, useScrollPhysics, useScrollbar, useSessionStorage, useShortcuts, useSortable, useTimer, useUploader, useWatchDB, useWebSocket };

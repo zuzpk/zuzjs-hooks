@@ -50,7 +50,29 @@ export { default as useDimensions } from './useDimensions';
 
 export { default as useDocumentTitle } from './useDocumentTitle';
 
-export { DragDirection, default as useDrag, type DragOptions } from './useDrag';
+export {
+    default as useDrag,
+    type DragProbe,
+    type DragSpec,
+    type DragType,
+    type UseDragSpecFactory
+} from './useDrag';
+
+export {
+    default as useDrop,
+    type DropProbe,
+    type DropSpec,
+    type UseDropSpecFactory
+} from './useDrop';
+
+export {
+    default as useSortable,
+    type SortableId,
+    type SortablePayload,
+    type SortableSpec,
+    type SortableState,
+    type UseSortableSpecFactory
+} from './useSortable';
 
 export { default as useFacebookPixel } from './useFacebookPixel';
 
