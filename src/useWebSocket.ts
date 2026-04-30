@@ -21,6 +21,19 @@ const socketInstances = new Map<string, WebSocket>();
 const listenersMap = new Map<string, ((event: MessageEvent) => void)[]>();
 const reconnectIntervals = new Map<string, number>(); // Store dynamic reconnect intervals
 
+const toWebSocketUrl = (input: string) => {
+  if (/^wss?:\/\//i.test(input)) return input;
+  if (/^https?:\/\//i.test(input)) return input.replace(/^http/i, "ws");
+
+  if (typeof window !== "undefined") {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const path = input.startsWith("/") ? input : `/${input}`;
+    return `${protocol}//${window.location.host}${path}`;
+  }
+
+  return input;
+};
+
 const useWebSocket = (url: string, options?: WebSocketOptions) => {
   
   const { 
@@ -31,18 +44,19 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
   const _headers = useRef<WebSocketHeaders | undefined>(headers)
+  const socketUrl = toWebSocketUrl(url);
 
-  const getReconnectInterval = (url: string) => reconnectIntervals.get(url) ?? 2
+  const getReconnectInterval = (key: string) => reconnectIntervals.get(key) ?? 2
 
-  const increaseReconnectInterval = (url: string) => {
-    const current = getReconnectInterval(url);
+  const increaseReconnectInterval = (key: string) => {
+    const current = getReconnectInterval(key);
     const next = Math.min(current * 2, 60); // Double each time, max 60s
-    reconnectIntervals.set(url, next);
+    reconnectIntervals.set(key, next);
     return next * 1000;
   };
 
-  const resetReconnectInterval = (url: string) => {
-    reconnectIntervals.set(url, 2); // Reset to 1s on successful reconnect
+  const resetReconnectInterval = (key: string) => {
+    reconnectIntervals.set(key, 2); // Reset to 1s on successful reconnect
   };
 
   const parseIncomingData = useCallback((data: MessageEvent["data"]) => {
@@ -60,8 +74,8 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
 
     if ( websocketHeaders ) _headers.current = websocketHeaders
 
-    if (socketInstances.has(url)) {
-      const Socket = socketInstances.get(url);
+    if (socketInstances.has(socketUrl)) {
+      const Socket = socketInstances.get(socketUrl);
       if ( Socket ){
         Socket.onmessage = (event) => {
 
@@ -72,21 +86,21 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
           const raw = parseIncomingData(event.data)
           onMessage?.(raw);
         
-          listenersMap.get(url)?.forEach((listener) => listener(event));
+          listenersMap.get(socketUrl)?.forEach((listener) => listener(event));
         };
       }
       return; // Prevent duplicate connection
     }
 
 
-    const socket = new WebSocket(url, _headers.current ? [`Authorization_${_headers.current.Authorization}`] : undefined);
+    const socket = new WebSocket(socketUrl, _headers.current ? [`Authorization_${_headers.current.Authorization}`] : undefined);
 
-    socketInstances.set(url, socket);
-    listenersMap.set(url, []);
+    socketInstances.set(socketUrl, socket);
+    listenersMap.set(socketUrl, []);
 
     socket.onopen = (event) => {
       setIsConnected(true);
-      resetReconnectInterval(url);
+      resetReconnectInterval(socketUrl);
       onOpen?.(event);
     };
 
@@ -99,7 +113,7 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
       const raw = parseIncomingData(event.data)
       onMessage?.(raw);
       
-      listenersMap.get(url)?.forEach((listener) => listener(event));
+      listenersMap.get(socketUrl)?.forEach((listener) => listener(event));
     };
 
     socket.onerror = (event) => {
@@ -109,57 +123,57 @@ const useWebSocket = (url: string, options?: WebSocketOptions) => {
     socket.onclose = (event) => {
       setIsConnected(false);
       onClose?.(event);
-      socketInstances.delete(url);
-      listenersMap.delete(url);
+      socketInstances.delete(socketUrl);
+      listenersMap.delete(socketUrl);
       if (reconnect && event.code !== 1000) { // 1000 = normal close
-        const delay = increaseReconnectInterval(url);
+        const delay = increaseReconnectInterval(socketUrl);
         console.log(`Reconnecting in ${delay / 1000} seconds...`);
         setTimeout(() => {
-          if (!socketInstances.has(url)) connect(); // Ensure only one instance reconnects
+          if (!socketInstances.has(socketUrl)) connect(); // Ensure only one instance reconnects
         }, delay);
       }
     };
-  }, [url, onOpen, onClose, onRawMessage, onMessage, onError, reconnect, parseIncomingData]);
+  }, [socketUrl, onOpen, onClose, onRawMessage, onMessage, onError, reconnect, parseIncomingData]);
 
   const disconnect = useCallback(() => {
-    socketInstances.get(url)?.close(1000);
-    socketInstances.delete(url);
+    socketInstances.get(socketUrl)?.close(1000);
+    socketInstances.delete(socketUrl);
     setIsConnected(false);
-  }, [url]);
+  }, [socketUrl]);
 
   useEffect(() => {
     if ( autoConnect ) connect();
     return () => {
-      if (listenersMap.get(url)?.length === 0) {
-        socketInstances.get(url)?.close();
-        socketInstances.delete(url);
-        listenersMap.delete(url);
-        reconnectIntervals.delete(url);
+      if (listenersMap.get(socketUrl)?.length === 0) {
+        socketInstances.get(socketUrl)?.close();
+        socketInstances.delete(socketUrl);
+        listenersMap.delete(socketUrl);
+        reconnectIntervals.delete(socketUrl);
       }
     };
   }, []);
 
   useEffect(() => {
     const messageListener = (event: MessageEvent) => setMessages((prev) => [...prev, event.data]);
-    listenersMap.get(url)?.push(messageListener);
+    listenersMap.get(socketUrl)?.push(messageListener);
     return () => {
-      const listeners = listenersMap.get(url) || [];
+      const listeners = listenersMap.get(socketUrl) || [];
       listenersMap.set(
-        url,
+        socketUrl,
         listeners.filter((listener) => listener !== messageListener)
       );
     };
-  }, [url]);
+  }, [socketUrl]);
 
   const sendMessage = useCallback((message: string | object) => {
-    const socket = socketInstances.get(url);
+    const socket = socketInstances.get(socketUrl);
     if (socket && socket.readyState === WebSocket.OPEN) {
       const data = typeof message === "string" ? message : JSON.stringify(message);
       socket.send(data);
     } else {
       console.log("WebSocket is not connected.");
     }
-  }, [url]);
+  }, [socketUrl]);
 
   return { isConnected, messages, connect, disconnect, sendMessage };
 };
