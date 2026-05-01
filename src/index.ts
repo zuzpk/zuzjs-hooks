@@ -80,6 +80,17 @@ export { default as useFileSystem } from './useFileSystem';
 
 export { default as useGoogleTagManager } from './useGoogleTagManager';
 
+export {
+    default as useGradient,
+    type GradientAnimation,
+    type GradientMotionPreset,
+    type GradientStop,
+    type GradientType,
+    type OrbLayer,
+    type UseGradientOptions,
+    type UseGradientResult
+} from './useGradient';
+
 export { default as useImage } from './useImage';
 
 export { default as useImageCropper } from './useImageCropper';
@@ -123,6 +134,8 @@ export { default as useNetworkStatus } from './useNetworkStatus';
 
 export { default as useNextInterval } from './useNextInterval';
 
+export { default as useParallax } from './useParallax';
+
 export {
     default as usePushNotifications, type PushNotificationsOptions,
     type PushNotificationsResult, type PushSubscriptionMeta
@@ -135,6 +148,32 @@ export { default as useScrollbar, type ScrollBreakpoint } from './useScrollbar';
 export { default as useScrollPhysics } from './useScrollPhysics';
 
 export { default as useShortcuts } from './useShortcuts';
+
+export {
+    default as useTimeline,
+    type TimelineAnchor,
+    type TimelineAnchorEdge,
+    type TimelineAnchorRef,
+    type TimelineDebugInfo,
+    type TimelineDebugLayerRange,
+    type TimelineEasing,
+    type TimelineEasingName,
+    type TimelineEffect,
+    type TimelineEntry,
+    type TimelineEntryTrigger,
+    type TimelineKeyframe,
+    type TimelineLayer,
+    type TimelineLayerState,
+    type TimelineMode,
+    type TimelineOptions,
+    type TimelineSpanTrigger,
+    type TimelineTransformEffects,
+    type TransformSkewEffect,
+    type TransformSkewPair,
+    type TransformValueEffect,
+    type TransformValueTuple,
+    type UseTimelineReturn
+} from './useTimeline';
 
 export { default as useTimer } from './useTimer';
 
