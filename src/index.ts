@@ -168,6 +168,7 @@ export {
     type TimelineOptions,
     type TimelineSpanTrigger,
     type TimelineTransformEffects,
+    type TimelineTriggerOffset,
     type TransformSkewEffect,
     type TransformSkewPair,
     type TransformValueEffect,

@@ -157,6 +157,7 @@ const useAnchor = (
     const preferredPlacement = options?.preferredPlacement || "bottom";
     const gap = options?.margin ?? options?.offset ?? 0;
     const [placement, setPlacement] = useState<AnchorPlacement>(preferredPlacement);
+    const [isPositioned, setIsPositioned] = useState(false);
     const floatingStyle = useMemo(() => {
         const style = getPlacementStyle(placement, gap);
         return { ...style, positionAnchor: _anchorName };
@@ -251,6 +252,21 @@ const useAnchor = (
         }
     }, [autoFlip, preferredPlacement]);
 
+    useEffect(() => {
+        if (!open || !canUseDocument) {
+            setIsPositioned(false);
+            return;
+        }
+
+        const rafId = requestAnimationFrame(() => {
+            if (anchorElRef.current && floatingRef.current) {
+                setIsPositioned(true);
+            }
+        });
+
+        return () => cancelAnimationFrame(rafId);
+    }, [open, canUseDocument]);
+
     const root = useMemo(() => {
         const hasExplicitAnchor = (() => {
             let found = false;
@@ -338,6 +354,7 @@ const useAnchor = (
         floatingRef,
         floatingStyle,
         placement,
+        isPositioned,
     };
 
 }

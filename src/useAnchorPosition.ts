@@ -16,14 +16,25 @@ const useAnchorPosition = (
 ) => {
     const [position, setPosition] = useState({ top: 0, left: 0 });
     const [calculatedAnchor, setCalculatedAnchor] = useState(options.preferredAnchor || ANCHOR.TopLeft);
+    const [isPositioned, setIsPositioned] = useState(false);
     const targetRef = useRef<HTMLElement | null>(null);
 
     const { offsetX = 0, offsetY = 0, overflow = true, preferredAnchor = ANCHOR.TopLeft } = options;
 
     const updatePosition = useCallback(() => {
         const menu = targetRef.current;
+        if (!menu) {
+            setIsPositioned(false);
+            return;
+        }
+
         const menuWidth = menu?.offsetWidth || 0;
         const menuHeight = menu?.offsetHeight || 0;
+        if (menuWidth === 0 || menuHeight === 0) {
+            setIsPositioned(false);
+            return;
+        }
+
         const { innerWidth, innerHeight } = window;
 
         let top = 0;
@@ -83,9 +94,11 @@ const useAnchorPosition = (
 
         setPosition({ top, left });
         setCalculatedAnchor(finalAnchor);
+        setIsPositioned(true);
     }, [event, parent, offsetX, offsetY, overflow, preferredAnchor]);
 
     useEffect(() => {
+        setIsPositioned(false);
         updatePosition();
         
         // Listen for window changes
@@ -103,7 +116,7 @@ const useAnchorPosition = (
         };
     }, [updatePosition]);
 
-    return { position, targetRef, calculatedAnchor };
+    return { position, targetRef, calculatedAnchor, isPositioned };
 }
 
 export default useAnchorPosition;

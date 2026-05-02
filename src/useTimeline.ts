@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRenderBatch, FrameData, ProcessFn, RenderBatch } from './frameloop';
 
 export type TimelineMode = 'scroll' | 'manual' | 'auto';
@@ -10,6 +10,7 @@ export type TimelineEasingName = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';
 export type TimelineEasing = TimelineEasingName | string | ((t: number) => number);
 export type TimelineSpanTrigger = 'timeline' | 'inView';
 export type TimelineEntryTrigger = 'mount' | 'inView';
+export type TimelineTriggerOffset = number | [startOffset: number, endOffset: number];
 
 export interface TimelineEffect {
     property: string;
@@ -104,6 +105,8 @@ export interface TimelineKeyframe {
     id?: string;
     /** Span trigger mode. timeline = sticky chaining, inView = active only within range. */
     trigger?: TimelineSpanTrigger;
+    /** Offset to shift resolved start/end trigger range. Number shifts both, tuple shifts independently. */
+    triggerOffset?: TimelineTriggerOffset;
     start: TimelineAnchor; // 0..1 or anchor reference
     end: TimelineAnchor;   // 0..1 or anchor reference
     effects?: TimelineEffect[];
@@ -131,6 +134,8 @@ export interface TimelineLayer {
     id: string;
     /** Default trigger for this layer's spans/keyframes when omitted on each keyframe. */
     trigger?: TimelineSpanTrigger;
+    /** Default trigger offset for this layer's spans when omitted on each keyframe. */
+    triggerOffset?: TimelineTriggerOffset;
     /** Required when not using `keyframes`. */
     start?: TimelineAnchor; // 0..1 or anchor reference
     /** Required when not using `keyframes`. */
@@ -193,6 +198,8 @@ export interface TimelinePerfMetrics {
 export interface TimelineDebugInfo<Id extends string = string> {
     enabled: boolean;
     mode: TimelineMode;
+    root: string;
+    scrollSource: string;
     sceneHeight: number;
     viewportHeight: number;
     scrollTop: number;
@@ -234,6 +241,8 @@ interface NormalizedTimelineEntry {
 
 interface PendingTimelineSpan {
     trigger: TimelineSpanTrigger;
+    triggerOffsetStart: number;
+    triggerOffsetEnd: number;
     startAnchor: TimelineAnchor;
     endAnchor: TimelineAnchor;
     keyframeId?: string;
@@ -560,6 +569,7 @@ const isTransformValueGroup = (value: unknown): value is { x: TransformValueEffe
 const TIMELINE_RESERVED_KEYS = new Set([
     'id',
     'trigger',
+    'triggerOffset',
     'start',
     'end',
     'effects',
@@ -602,6 +612,23 @@ const TRANSFORM_KEYS = new Set<keyof TimelineTransformEffects>([
 type LayerLike = { effects?: TimelineEffect[]; transforms?: TimelineTransformEffects; [key: string]: unknown };
 
 type AnchorRefSource = Exclude<TimelineAnchor, number>;
+
+const normalizeTriggerOffset = (offset: TimelineTriggerOffset | undefined) => {
+    if (offset === undefined) return { start: 0, end: 0 };
+
+    if (Array.isArray(offset)) {
+        const start = Number(offset[0]);
+        const end = Number(offset[1]);
+        return {
+            start: Number.isFinite(start) ? start : 0,
+            end: Number.isFinite(end) ? end : 0,
+        };
+    }
+
+    const n = Number(offset);
+    const safe = Number.isFinite(n) ? n : 0;
+    return { start: safe, end: safe };
+};
 
 const parseTimelineAnchor = (anchor: AnchorRefSource): TimelineAnchorRef | null => {
     if (typeof anchor === 'object' && anchor) {
@@ -691,13 +718,18 @@ const getDirectLayerEffects = (layer: LayerLike) => {
 };
 
 const normalizeSpan = (
-    kf: LayerLike & { start: TimelineAnchor; end: TimelineAnchor; id?: string; trigger?: TimelineSpanTrigger },
+    kf: LayerLike & { start: TimelineAnchor; end: TimelineAnchor; id?: string; trigger?: TimelineSpanTrigger; triggerOffset?: TimelineTriggerOffset },
     keyframeIndex: number,
     defaultTrigger: TimelineSpanTrigger,
+    defaultTriggerOffset: TimelineTriggerOffset | undefined,
 ): PendingTimelineSpan => {
     const { styleEffects, transformEffects } = getDirectLayerEffects(kf);
+    const offsets = normalizeTriggerOffset(kf.triggerOffset ?? defaultTriggerOffset);
+
     return {
         trigger: kf.trigger ?? defaultTrigger,
+        triggerOffsetStart: offsets.start,
+        triggerOffsetEnd: offsets.end,
         startAnchor: kf.start,
         endAnchor: kf.end,
         keyframeId: typeof kf.id === 'string' && kf.id.trim() ? kf.id : undefined,
@@ -732,18 +764,19 @@ const normalizeEntry = (entry: TimelineEntry): NormalizedTimelineEntry => {
 
 const normalizeTimelineLayer = (layer: TimelineLayer): PendingTimelineLayer => {
     const spanTrigger = layer.trigger ?? 'timeline';
+    const spanTriggerOffset = layer.triggerOffset;
 
     if (layer.keyframes && layer.keyframes.length > 0) {
         return {
             id: layer.id,
-            spans: layer.keyframes.map((keyframe, index) => normalizeSpan(keyframe, index, spanTrigger)),
+            spans: layer.keyframes.map((keyframe, index) => normalizeSpan(keyframe, index, spanTrigger, spanTriggerOffset)),
             entry: layer.entry ? normalizeEntry(layer.entry) : undefined,
         };
     }
 
     return {
         id: layer.id,
-        spans: [normalizeSpan({ ...layer, start: layer.start ?? 0, end: layer.end ?? 1 }, 0, spanTrigger)],
+        spans: [normalizeSpan({ ...layer, start: layer.start ?? 0, end: layer.end ?? 1 }, 0, spanTrigger, spanTriggerOffset)],
         entry: layer.entry ? normalizeEntry(layer.entry) : undefined,
     };
 };
@@ -808,8 +841,8 @@ const resolveTimelineLayers = (layers: PendingTimelineLayer[]): NormalizedTimeli
 
         resolvingSpans.add(key);
         const isAnchored = typeof span.startAnchor !== 'number' || typeof span.endAnchor !== 'number';
-        let start = resolveAnchor(span.startAnchor, 'start');
-        let end = resolveAnchor(span.endAnchor, 'end');
+        let start = clamp01(resolveAnchor(span.startAnchor, 'start') + span.triggerOffsetStart);
+        let end = clamp01(resolveAnchor(span.endAnchor, 'end') + span.triggerOffsetEnd);
         let adjustedFromNearZero = false;
 
         // Anchor-linked spans can easily collapse to a single point (e.g. start: "hero", end: 0.5)
@@ -995,6 +1028,209 @@ const getScrollContainer = (el: HTMLElement | null) => {
     return el?.closest('.--scroll-content') as HTMLElement | null;
 };
 
+const describeDebugElement = (el: HTMLElement | null) => {
+    if (!el) return 'none';
+
+    const tag = el.tagName.toLowerCase();
+    const id = el.id ? `#${el.id}` : '';
+    const classes = Array.from(el.classList)
+        .slice(0, 3)
+        .map((name) => `.${name}`)
+        .join('');
+
+    return `${tag}${id}${classes}`;
+};
+
+const kebabToCamel = (value: string) => value.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+
+const CSS_PROP_ALIASES: Record<string, string> = {
+    bg: 'background',
+    bgc: 'backgroundColor',
+    bgi: 'backgroundImage',
+    c: 'color',
+    fs: 'fontSize',
+    lh: 'lineHeight',
+    w: 'width',
+    minW: 'minWidth',
+    maxW: 'maxWidth',
+    h: 'height',
+    minH: 'minHeight',
+    maxH: 'maxHeight',
+    m: 'margin',
+    mt: 'marginTop',
+    mr: 'marginRight',
+    mb: 'marginBottom',
+    ml: 'marginLeft',
+    p: 'padding',
+    pt: 'paddingTop',
+    pr: 'paddingRight',
+    pb: 'paddingBottom',
+    pl: 'paddingLeft',
+    align: 'textAlign',
+    td: 'textDecoration',
+    shadow: 'boxShadow',
+    origin: 'transformOrigin',
+    ratio: 'aspectRatio',
+};
+
+const CSS_DIRECT_TEMPLATES: Record<string, string> = {
+    ph: 'padding-left:__VALUE__;padding-right:__VALUE__;',
+    pv: 'padding-top:__VALUE__;padding-bottom:__VALUE__;',
+    mh: 'margin-left:__VALUE__;margin-right:__VALUE__;',
+    mv: 'margin-top:__VALUE__;margin-bottom:__VALUE__;',
+};
+
+type TimelineInlineStyle = Record<string, string | number>;
+
+const resolveStylePropertyKey = (property: string) => {
+    if (CSS_PROP_ALIASES[property]) return CSS_PROP_ALIASES[property];
+    if (property.includes('-')) return kebabToCamel(property);
+    return property;
+};
+
+const parseInlineDeclarations = (declarations: string): TimelineInlineStyle => {
+    const style: TimelineInlineStyle = {};
+    declarations
+        .split(';')
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .forEach((part) => {
+            const sep = part.indexOf(':');
+            if (sep < 1) return;
+            const rawProp = part.slice(0, sep).trim();
+            const rawValue = part.slice(sep + 1).trim();
+            if (!rawProp || !rawValue) return;
+            style[resolveStylePropertyKey(rawProp)] = rawValue;
+        });
+    return style;
+};
+
+const applyStyleEffectValue = (
+    target: TimelineInlineStyle,
+    property: string,
+    effect: TransformValueEffect,
+    progress: number,
+    easing?: TimelineEasing,
+) => {
+    const directTemplate = CSS_DIRECT_TEMPLATES[property];
+    const value = interpolateTransformValue(effect, progress, '', easing);
+
+    if (directTemplate) {
+        const rendered = directTemplate.replaceAll('__VALUE__', `${value}`);
+        Object.assign(target, parseInlineDeclarations(rendered));
+        return;
+    }
+
+    target[resolveStylePropertyKey(property)] = value;
+};
+
+const applyTimelineEffectValue = (
+    target: TimelineInlineStyle,
+    effect: TimelineEffect,
+    progress: number,
+    easing?: TimelineEasing,
+) => {
+    const directTemplate = CSS_DIRECT_TEMPLATES[effect.property];
+    const value = interpolateEffect(effect, progress, easing);
+
+    if (directTemplate) {
+        const rendered = directTemplate.replaceAll('__VALUE__', `${value}`);
+        Object.assign(target, parseInlineDeclarations(rendered));
+        return;
+    }
+
+    target[resolveStylePropertyKey(effect.property)] = value;
+};
+
+const escapeAttrSelector = (value: string) => {
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+        return CSS.escape(value);
+    }
+
+    return value.replace(/([\\"'])/g, '\\$1');
+};
+
+const buildLayerStyleAtPlayhead = (layer: NormalizedTimelineLayer, playhead: number): TimelineInlineStyle => {
+    const style: TimelineInlineStyle = {};
+
+    for (const span of layer.spans) {
+        const spanEntry = Math.min(span.start, span.end);
+        const spanExit = Math.max(span.start, span.end);
+
+        if (span.trigger === 'inView') {
+            if (playhead < spanEntry || playhead > spanExit) continue;
+        } else {
+            if (playhead < spanEntry) continue;
+        }
+
+        const spanProgress = getLayerProgress(playhead, { start: span.start, end: span.end });
+
+        for (const effect of span.effects) {
+            applyTimelineEffectValue(style, effect, spanProgress);
+        }
+
+        Object.entries(span.styleEffects).forEach(([property, effect]) => {
+            applyStyleEffectValue(style, property, effect, spanProgress);
+        });
+
+        const transform = composeTransform(span.transforms, spanProgress);
+        if (transform) style.transform = transform;
+    }
+
+    const entry = layer.entry;
+    if (entry && entry.trigger === 'inView') {
+        const entries = layer.spans.map((span) => Math.min(span.start, span.end));
+        const exits = layer.spans.map((span) => Math.max(span.start, span.end));
+        const overallStart = Math.min(...entries);
+        const overallEnd = Math.max(...exits);
+        const t = getLayerProgress(playhead, { start: overallStart, end: overallEnd });
+
+        for (const effect of entry.effects) {
+            applyTimelineEffectValue(style, effect, t, entry.easing);
+        }
+        Object.entries(entry.styleEffects).forEach(([property, effect]) => {
+            applyStyleEffectValue(style, property, effect, t, entry.easing);
+        });
+
+        const transform = composeTransform(entry.transforms, t, entry.easing);
+        if (transform) style.transform = transform;
+    }
+
+    return style;
+};
+
+const buildMountEntryStyle = (entry: NormalizedTimelineEntry, progress: number): TimelineInlineStyle => {
+    const style: TimelineInlineStyle = {};
+
+    for (const effect of entry.effects) {
+        applyTimelineEffectValue(style, effect, progress, entry.easing);
+    }
+
+    Object.entries(entry.styleEffects).forEach(([property, effect]) => {
+        applyStyleEffectValue(style, property, effect, progress, entry.easing);
+    });
+
+    const transform = composeTransform(entry.transforms, progress, entry.easing);
+    if (transform) style.transform = transform;
+
+    return style;
+};
+
+const toWaapiEasing = (easing?: TimelineEasing) => {
+    if (!easing || typeof easing === 'function') return 'linear';
+    const token = normalizeEasingToken(easing);
+    const cssVarValue = token.startsWith('var(--') ? resolveCssVarValue(token) : undefined;
+    const candidate = (cssVarValue || token).trim();
+
+    if (candidate === 'easeIn') return 'ease-in';
+    if (candidate === 'easeOut') return 'ease-out';
+    if (candidate === 'easeInOut') return 'ease-in-out';
+    if (candidate === 'linear' || candidate === 'ease') return candidate;
+    if (/^cubic-bezier\(/i.test(candidate)) return candidate;
+
+    return 'linear';
+};
+
 export interface UseTimelineReturn<Id extends string = string> {
     containerRef: React.RefObject<HTMLDivElement | null>;
     playhead: number;
@@ -1012,6 +1248,9 @@ export interface UseTimelineReturn<Id extends string = string> {
         next: () => void;
         prev: () => void;
         isPlaying: boolean;
+    };
+    waapi: {
+        enabled: boolean;
     };
     debug: TimelineDebugInfo<Id>;
 }
@@ -1053,15 +1292,16 @@ const useTimeline = <Id extends string = string>({
     const [resolvedSceneHeight, setResolvedSceneHeight] = useState(sceneHeightRef.current);
     const [debugScrollTop, setDebugScrollTop] = useState(0);
     const [debugViewportHeight, setDebugViewportHeight] = useState(0);
+    const [debugRoot, setDebugRoot] = useState('none');
+    const [debugScrollSource, setDebugScrollSource] = useState('window');
     const debugOverlayRef = useRef<HTMLDivElement | null>(null);
     const lastCommitAtRef = useRef(0);
     const frameIntervalRef = useRef(1000 / clampFps(maxFPS));
-    const entryStartedAtRef = useRef<number | null>(null);
-    const [entryNow, setEntryNow] = useState(0);
-    const prevPlayheadRef = useRef(0);
-    const prevEntryNowRef = useRef(0);
     const autoPlayStartTimeRef = useRef<number | null>(null);
     const lerpLoopRef = useRef<ProcessFn | null>(null);
+    const waapiAnimationsRef = useRef<Map<string, Animation[]>>(new Map());
+    const waapiDurationRef = useRef(1000);
+    const waapiEnabled = typeof window !== 'undefined' && typeof Element !== 'undefined' && typeof Element.prototype.animate === 'function';
 
     // Lerp-mode refs — updated every render so RAF loop always reads latest values
     const lerpTargetRef = useRef(0);
@@ -1109,64 +1349,113 @@ const useTimeline = <Id extends string = string>({
         return resolveTimelineLayers(pendingLayers);
     }, [layers]);
 
-    const maxEntryDuration = useMemo(() => {
-        return normalizedLayers.reduce((max, layer) => {
-            if (!layer.entry || layer.entry.trigger !== 'mount') return max;
-            return Math.max(max, layer.entry.delay + layer.entry.duration);
-        }, 0);
-    }, [normalizedLayers]);
+    useLayoutEffect(() => {
+        if (!waapiEnabled || typeof document === 'undefined') return;
 
-    // Phase 2: Entry Ticker via Batcher (coalesces with scroll + lerp + autoplay)
-    useEffect(() => {
-        if (maxEntryDuration <= 0) {
-            entryStartedAtRef.current = null;
-            setEntryNow(0);
-            return;
-        }
+        const mountEntryAnimations: Animation[] = [];
 
-        if (!batchRef.current) return;
-
-        const startedAt = performance.now();
-        entryStartedAtRef.current = startedAt;
-        prevEntryNowRef.current = startedAt;
-        setEntryNow(startedAt);
-        let entryUpdateFn: ProcessFn | null = null;
-
-        // Schedule entry update via batcher preUpdate step — fires before animations interpolate
-        entryUpdateFn = (frameData: FrameData) => {
-            if (!entryUpdateFn) return; // Already cancelled
-
-            sampleFrame(frameData);
-
-            const now = frameData.timestamp;
-            const elapsed = now - startedAt;
-
-            // Throttle updates to maxFPS
-            if (now - prevEntryNowRef.current >= frameIntervalRef.current) {
-                prevEntryNowRef.current = now;
-                setEntryNow(now);
-            }
-
-            if (elapsed >= maxEntryDuration) {
-                const fn = entryUpdateFn;
-                entryUpdateFn = null;
-                setEntryNow(startedAt + maxEntryDuration);
-                if (batchRef.current && fn) {
-                    batchRef.current.cancel(fn);
+        waapiAnimationsRef.current.forEach((animations) => {
+            animations.forEach((animation) => {
+                try {
+                    animation.cancel();
+                } catch {
+                    // no-op
                 }
-            }
-        };
+            });
+        });
+        waapiAnimationsRef.current.clear();
 
-        batchRef.current.schedule('preUpdate', entryUpdateFn, true);
+        if (normalizedLayers.length === 0) return;
+
+        const root: ParentNode = containerRef.current ?? document;
+        const sampleCount = 60;
+        const durationMs = 1000;
+        waapiDurationRef.current = durationMs;
+
+        normalizedLayers.forEach((layer) => {
+            const selector = `[data-zuz-timeline-layer="${escapeAttrSelector(layer.id)}"]`;
+            const nodes = Array.from(root.querySelectorAll(selector)) as HTMLElement[];
+            if (nodes.length === 0) return;
+
+            const keyframes: Keyframe[] = Array.from({ length: sampleCount + 1 }, (_v, index) => {
+                const progress = index / sampleCount;
+                const style = buildLayerStyleAtPlayhead(layer, progress);
+                return {
+                    offset: progress,
+                    ...style,
+                } as Keyframe;
+            });
+
+            const animations = nodes.map((node) => {
+                const animation = node.animate(keyframes, {
+                    duration: durationMs,
+                    fill: 'both',
+                    easing: 'linear',
+                    iterations: 1,
+                });
+                animation.pause();
+                animation.currentTime = playheadRef.current * durationMs;
+
+                if (layer.entry?.trigger === 'mount') {
+                    const fromStyle = buildMountEntryStyle(layer.entry, 0);
+                    const toStyle = buildMountEntryStyle(layer.entry, 1);
+                    const entryAnimation = node.animate([fromStyle, toStyle], {
+                        duration: layer.entry.duration,
+                        delay: layer.entry.delay,
+                        easing: toWaapiEasing(layer.entry.easing),
+                        fill: 'both',
+                        iterations: 1,
+                    });
+
+                    entryAnimation.onfinish = () => {
+                        try {
+                            entryAnimation.cancel();
+                        } catch {
+                            // no-op
+                        }
+                    };
+
+                    mountEntryAnimations.push(entryAnimation);
+                }
+
+                return animation;
+            });
+
+            waapiAnimationsRef.current.set(layer.id, animations);
+        });
 
         return () => {
-            entryStartedAtRef.current = null;
-            if (batchRef.current && entryUpdateFn) {
-                batchRef.current.cancel(entryUpdateFn);
-            }
-            entryUpdateFn = null;
+            waapiAnimationsRef.current.forEach((animations) => {
+                animations.forEach((animation) => {
+                    try {
+                        animation.cancel();
+                    } catch {
+                        // no-op
+                    }
+                });
+            });
+
+            mountEntryAnimations.forEach((animation) => {
+                try {
+                    animation.cancel();
+                } catch {
+                    // no-op
+                }
+            });
+
+            waapiAnimationsRef.current.clear();
         };
-    }, [maxEntryDuration]);
+    }, [normalizedLayers, waapiEnabled]);
+
+    useEffect(() => {
+        if (!waapiEnabled) return;
+        const currentTime = playhead * waapiDurationRef.current;
+        waapiAnimationsRef.current.forEach((animations) => {
+            animations.forEach((animation) => {
+                animation.currentTime = currentTime;
+            });
+        });
+    }, [playhead, waapiEnabled]);
 
     useEffect(() => {
         playheadRef.current = playhead;
@@ -1307,6 +1596,11 @@ const useTimeline = <Id extends string = string>({
 
         const scrollContainer = getScrollContainer(timelineEl);
 
+        if (debug) {
+            setDebugRoot(describeDebugElement(timelineEl));
+            setDebugScrollSource(scrollContainer ? describeDebugElement(scrollContainer) : 'window');
+        }
+
         const resolveSceneHeight = () => {
             if (sceneHeight && sceneHeight > 0) return sceneHeight;
 
@@ -1415,55 +1709,11 @@ const useTimeline = <Id extends string = string>({
         const states = normalizedLayers.reduce((acc, layer) => {
             const spans = layer.spans;
 
-            const sorted = spans; // pre-sorted in resolveTimelineLayers
-
             // Overall bounds across all spans
             const allEntries = spans.map(s => Math.min(s.start, s.end));
             const allExits   = spans.map(s => Math.max(s.start, s.end));
             const overallStart = Math.min(...allEntries);
             const overallEnd   = Math.max(...allExits);
-            const hasKeyframes = sorted.length > 0;
-            const spanSamples: Array<{ span: typeof sorted[number]; spanProgress: number }> = [];
-
-            for (const span of sorted) {
-                const spanEntry = Math.min(span.start, span.end);
-                const spanExit = Math.max(span.start, span.end);
-
-                if (span.trigger === 'inView') {
-                    if (playhead < spanEntry || playhead > spanExit) continue;
-                } else {
-                    if (playhead < spanEntry) continue;
-                }
-
-                spanSamples.push({
-                    span,
-                    spanProgress: getLayerProgress(playhead, { start: span.start, end: span.end }),
-                });
-            }
-
-            const entry = layer.entry;
-            let entryProgress = -1;
-            let isEntryActive = false;
-            let shouldApplyEntry = false;
-            if (entry) {
-                if (entry.trigger === 'inView') {
-                    entryProgress = getLayerProgress(playhead, { start: overallStart, end: overallEnd });
-                    shouldApplyEntry = true;
-                } else {
-                    const elapsedMs = entryStartedAtRef.current === null
-                        ? 0
-                        : Math.max(entryNow - entryStartedAtRef.current, 0);
-                    const localMs = elapsedMs - entry.delay;
-                    isEntryActive = localMs <= entry.duration;
-                    entryProgress = isEntryActive
-                        ? (localMs <= 0 ? 0 : clamp01(localMs / entry.duration))
-                        : 1;
-
-                    // If layer has keyframes, let keyframes take over once mount-entry finishes.
-                    // For entry-only layers, keep applying final entry state (t=1).
-                    shouldApplyEntry = isEntryActive || !hasKeyframes;
-                }
-            }
 
             const totalDistance = overallEnd - overallStart;
             const overallProgress = totalDistance < 1e-6
@@ -1477,9 +1727,6 @@ const useTimeline = <Id extends string = string>({
                 roundMetric(overallProgress),
                 active ? 1 : 0,
                 roundMetric(resolvedSceneHeight),
-                roundMetric(entryProgress),
-                isEntryActive ? 1 : 0,
-                spanSamples.map(({ span, spanProgress }) => `${span.start}:${span.end}:${roundMetric(spanProgress)}`).join('|'),
             ].join(';');
             const cached = layerStateCacheRef.current[layer.id];
             if (cached?.key === cacheKey) {
@@ -1487,86 +1734,6 @@ const useTimeline = <Id extends string = string>({
                 acc[layer.id] = cached.state;
                 nextCache[layer.id] = cached;
                 return acc;
-            }
-
-            // Merge styles: iterate spans in order; skip spans that haven't started yet.
-            // Once a span has started it holds its end-state (progress=1) until the
-            // next span takes over, giving seamless chaining between keyframes.
-            const style: Record<string, string | number> = {};
-
-            for (const { span, spanProgress } of spanSamples) {
-                for (const effect of span.effects) {
-                    style[effect.property] = interpolateEffect(effect, spanProgress);
-                }
-                Object.entries(span.styleEffects).forEach(([property, effect]) => {
-                    style[property] = interpolateTransformValue(effect, spanProgress);
-                });
-                const transform = composeTransform(span.transforms, spanProgress);
-                if (transform) style.transform = transform;
-            }
-
-            // Layer-level entry animation (one-time mount animation).
-            // Important: before the entry ticker starts, force t=0 so first paint
-            // already uses the entry "from" state (prevents jump/flicker).
-            //
-            // For layers that ALSO have keyframe spans: the entry transform is
-            // COMPOSED (appended) on top of the keyframe transform rather than
-            // overriding it. This lets keyframes respond to scroll immediately
-            // while the entry animation plays simultaneously — no "entry delay"
-            // is transferred to keyframe activation.
-            //
-            // For entry-only layers: full override behaviour is kept so the final
-            // state (t=1) is held indefinitely after the entry completes.
-            if (entry) {
-                if (entry.trigger === 'inView') {
-                    // inView entries always override — they are scroll-driven themselves.
-                    if (shouldApplyEntry) {
-                        const t = entryProgress;
-                        for (const effect of entry.effects) {
-                            style[effect.property] = interpolateEffect(effect, t, entry.easing);
-                        }
-                        Object.entries(entry.styleEffects).forEach(([property, effect]) => {
-                            style[property] = interpolateTransformValue(effect, t, '', entry.easing);
-                        });
-                        const entryTransform = composeTransform(entry.transforms, t, entry.easing);
-                        if (entryTransform) style.transform = entryTransform;
-                    }
-                } else if (hasKeyframes) {
-                    // Mount entry + keyframes: compose entry transform additively so
-                    // scroll-driven keyframes are never blocked by the entry animation.
-                    const t = isEntryActive ? (entryProgress <= 0 ? 0 : entryProgress) : 1;
-                    // Non-transform properties (opacity, color, …) from entry override
-                    // keyframe equivalents only while entry is still active.
-                    if (isEntryActive) {
-                        for (const effect of entry.effects) {
-                            style[effect.property] = interpolateEffect(effect, t, entry.easing);
-                        }
-                        Object.entries(entry.styleEffects).forEach(([property, effect]) => {
-                            style[property] = interpolateTransformValue(effect, t, '', entry.easing);
-                        });
-                    }
-                    // Transform is always composed (appended) so both entry slide-in
-                    // and keyframe parallax/scroll effects stack correctly.
-                    const entryTransform = composeTransform(entry.transforms, t, entry.easing);
-                    if (entryTransform) {
-                        style.transform = style.transform
-                            ? `${style.transform} ${entryTransform}`
-                            : entryTransform;
-                    }
-                } else {
-                    // Entry-only layer: apply full state; hold at t=1 after completion.
-                    if (shouldApplyEntry) {
-                        const t = entryProgress;
-                        for (const effect of entry.effects) {
-                            style[effect.property] = interpolateEffect(effect, t, entry.easing);
-                        }
-                        Object.entries(entry.styleEffects).forEach(([property, effect]) => {
-                            style[property] = interpolateTransformValue(effect, t, '', entry.easing);
-                        });
-                        const entryTransform = composeTransform(entry.transforms, t, entry.easing);
-                        if (entryTransform) style.transform = entryTransform;
-                    }
-                }
             }
 
             const nextState = {
@@ -1580,7 +1747,7 @@ const useTimeline = <Id extends string = string>({
                     end: endPx,
                     span: Math.abs(endPx - startPx),
                 },
-                style,
+                style: {},
             } as TimelineLayerState;
 
             recomputedLayers += 1;
@@ -1596,7 +1763,7 @@ const useTimeline = <Id extends string = string>({
         perfMetricsRef.current.recomputedLayers = recomputedLayers;
 
         return states;
-    }, [entryNow, normalizedLayers, playhead, resolvedSceneHeight]);
+    }, [normalizedLayers, playhead, resolvedSceneHeight]);
 
     const layerProgress = useMemo(() => {
         return Object.keys(layerStates).reduce((acc, key) => {
@@ -1663,6 +1830,8 @@ const useTimeline = <Id extends string = string>({
         return {
             enabled: debug,
             mode,
+            root: debugRoot,
+            scrollSource: debugScrollSource,
             sceneHeight: resolvedSceneHeight,
             viewportHeight: debugViewportHeight,
             scrollTop: debugScrollTop,
@@ -1673,7 +1842,7 @@ const useTimeline = <Id extends string = string>({
             progressToPx,
             perf: { ...perfMetricsRef.current },
         } satisfies TimelineDebugInfo<Id>;
-    }, [debug, mode, resolvedSceneHeight, debugViewportHeight, debugScrollTop, pxToProgress, progressToPx, debugLayerRanges, debugSuggestions]);
+    }, [debug, mode, debugRoot, debugScrollSource, resolvedSceneHeight, debugViewportHeight, debugScrollTop, pxToProgress, progressToPx, debugLayerRanges, debugSuggestions]);
 
     useEffect(() => {
         if (!debug || !debugOverlay || typeof document === 'undefined') {
@@ -1729,6 +1898,8 @@ const useTimeline = <Id extends string = string>({
 
         mount.textContent = [
             'Timeline Debug',
+            `root: ${debugInfo.root}`,
+            `scrollSource: ${debugInfo.scrollSource}`,
             `sceneHeight: ${fmt(debugInfo.sceneHeight)}px`,
             `viewportHeight: ${fmt(debugInfo.viewportHeight)}px`,
             `scrollTop: ${fmt(debugInfo.scrollTop)}px`,
@@ -1764,6 +1935,9 @@ const useTimeline = <Id extends string = string>({
         effects: effects as Record<Id, Record<string, string | number>>,
         getLayerScrollRange: getLayerScrollRange as UseTimelineReturn<Id>['getLayerScrollRange'],
         controls: { play, pause, seek, next, prev, isPlaying },
+        waapi: {
+            enabled: waapiEnabled,
+        },
         debug: debugInfo,
     };
 };
