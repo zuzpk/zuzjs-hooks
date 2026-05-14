@@ -33,6 +33,11 @@ export { default as useAnchorPosition } from './useAnchorPosition';
 
 export { default as useCalendar } from './useCalendar';
 
+export {
+    default as useCache,
+    type UseCacheReturn
+} from './useCache';
+
 export { default as useCarousel } from './useCarousel';
 
 export {

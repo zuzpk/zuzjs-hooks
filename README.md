@@ -310,6 +310,79 @@ function SearchDraft() {
 }
 ```
 
+### useCache
+
+Generic `window.caches` hook. Content types are auto-detected from the file extension (`.bin` → `application/octet-stream`, `.json` → `application/json`, etc.).
+
+```tsx
+import { useCache } from "@zuzjs/hooks";
+
+type PackMeta = {
+    label: string;
+    version: number;
+};
+
+type PackEntry = {
+    id: string;
+    label: string;
+};
+
+function PackLoader() {
+    const cache = useCache<PackMeta, PackEntry>({
+        cacheName: "my-app-v1",
+        paths: {
+            binPrefix: "/__app/cache/bin",
+            indexPrefix: "/__app/cache/index",
+            metaPrefix: "/__app/cache/meta",
+        },
+    });
+
+    const seed = async () => {
+        const id = "pack-alpha";
+        const binary = new Uint8Array([10, 20, 30]);
+
+        // store binary + metadata
+        await cache.saveMeta(id, binary, { label: "Alpha Pack", version: 1 });
+
+        // store binary + searchable index
+        await cache.saveAssets(id, binary, [
+            { id: "a", label: "Entry A" },
+            { id: "b", label: "Entry B" },
+        ]);
+    };
+
+    const load = async () => {
+        const id = "pack-alpha";
+        const meta = await cache.loadMeta(id);
+        const assets = await cache.loadAssets(id);
+        console.log(meta?.label, assets?.index.map(e => e.label));
+    };
+
+    return <button onClick={seed}>Seed</button>;
+}
+```
+
+Remote fetch usage:
+
+```tsx
+await cache.fetchAndCacheAssets("pack-beta", {
+    binUrl: "/api/packs/beta.bin",
+    indexUrl: "/api/packs/beta.json",
+});
+
+const ready = await cache.hasAssets("pack-beta");
+if (ready) {
+    const result = await cache.loadAssets("pack-beta");
+    console.log(result?.index.map(e => e.label));
+}
+
+// clear a single entry
+await cache.removeAssets("pack-beta");
+
+// nuke the whole cache
+await cache.clearAll();
+```
+
 ## Realtime Usage
 
 ### useWebSocket
