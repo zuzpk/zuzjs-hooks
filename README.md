@@ -299,6 +299,27 @@ function ThemeToggle() {
 }
 ```
 
+### useLocalStore
+
+```tsx
+import { useLocalStore } from "@zuzjs/hooks";
+
+function FilterChips() {
+    const { value: filters, addValue, removeValue, toggleValue } = useLocalStore<string>("filters", {
+        defaultValue: ["all"]
+    });
+
+    return (
+        <div>
+            <button onClick={() => toggleValue("open")}>Toggle Open</button>
+            <button onClick={() => addValue(["urgent", "review"])}>Add More</button>
+            <button onClick={() => removeValue("all")}>Remove All</button>
+            <pre>{JSON.stringify(filters)}</pre>
+        </div>
+    );
+}
+```
+
 ### useSessionStorage
 
 ```tsx

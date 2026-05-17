@@ -15,6 +15,10 @@ export type UseCacheReturn = {
 
 const DEFAULT_CACHE_NAME = "zuz-cache-v1";
 
+type MemoryCacheEntry =
+	| { type: "json"; value: unknown }
+	| { type: "binary"; value: Uint8Array };
+
 const hasCacheApi = () => typeof window !== "undefined" && typeof window.caches !== "undefined";
 
 const toError = (err: unknown) => err instanceof Error ? err : new Error(String(err));
@@ -25,16 +29,28 @@ const toUint8ArrayBuffer = (value: Uint8Array): ArrayBuffer =>
 const toBinaryBuffer = (value: Uint8Array | ArrayBuffer): ArrayBuffer =>
 	value instanceof Uint8Array ? toUint8ArrayBuffer(value) : value;
 
+const cloneUint8Array = (value: Uint8Array) => new Uint8Array(value);
+
+const getOrigin = () => {
+	if (typeof window === "undefined") {
+		return "";
+	}
+
+	return window.location.origin;
+};
+
 const normalizeCacheKey = (key: string) => {
 	if (/^https?:\/\//i.test(key)) {
 		return key;
 	}
 
+	const origin = getOrigin();
+
 	if (key.startsWith("/")) {
-		return `${window.location.origin}${key}`;
+		return `${origin}${key}`;
 	}
 
-	return `${window.location.origin}/${key}`;
+	return origin ? `${origin}/${key}` : key;
 };
 
 const toRequest = (key: string) => new Request(normalizeCacheKey(key), {
@@ -44,14 +60,19 @@ const toRequest = (key: string) => new Request(normalizeCacheKey(key), {
 const useCache = (cacheName: string = DEFAULT_CACHE_NAME): UseCacheReturn => {
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<Error | null>(null);
+	const [memoryCache] = useState<Map<string, MemoryCacheEntry>>(() => new Map());
 
 	const getCache = useCallback(() => caches.open(cacheName), [cacheName]);
 
 	const write = useCallback(async (key: string, data: unknown) => {
-		if (!hasCacheApi()) return;
 		setIsLoading(true);
 		setError(null);
 		try {
+			if (!hasCacheApi()) {
+				memoryCache.set(normalizeCacheKey(key), { type: "json", value: data });
+				return;
+			}
+
 			const cache = await getCache();
 			await cache.put(toRequest(key), new Response(JSON.stringify(data), {
 				headers: { "content-type": "application/json" },
@@ -64,10 +85,15 @@ const useCache = (cacheName: string = DEFAULT_CACHE_NAME): UseCacheReturn => {
 	}, [getCache]);
 
 	const read = useCallback(async <T>(key: string): Promise<T | null> => {
-		if (!hasCacheApi()) return null;
 		setIsLoading(true);
 		setError(null);
 		try {
+			if (!hasCacheApi()) {
+				const entry = memoryCache.get(normalizeCacheKey(key));
+				if (!entry || entry.type !== "json") return null;
+				return entry.value as T;
+			}
+
 			const cache = await getCache();
 			const response = await cache.match(toRequest(key));
 			if (!response) return null;
@@ -78,13 +104,21 @@ const useCache = (cacheName: string = DEFAULT_CACHE_NAME): UseCacheReturn => {
 		} finally {
 			setIsLoading(false);
 		}
-	}, [getCache]);
+	}, [getCache, memoryCache]);
 
 	const writeBinary = useCallback(async (key: string, data: Uint8Array | ArrayBuffer) => {
-		if (!hasCacheApi()) return;
 		setIsLoading(true);
 		setError(null);
 		try {
+			if (!hasCacheApi()) {
+				const value = data instanceof Uint8Array
+					? cloneUint8Array(data)
+					: new Uint8Array(data);
+
+				memoryCache.set(normalizeCacheKey(key), { type: "binary", value });
+				return;
+			}
+
 			const cache = await getCache();
 			const buffer = toBinaryBuffer(data);
 			const body = new Blob([buffer], { type: "application/octet-stream" });
@@ -99,13 +133,18 @@ const useCache = (cacheName: string = DEFAULT_CACHE_NAME): UseCacheReturn => {
 		} finally {
 			setIsLoading(false);
 		}
-	}, [getCache]);
+	}, [getCache, memoryCache]);
 
 	const readBinary = useCallback(async (key: string): Promise<Uint8Array | null> => {
-		if (!hasCacheApi()) return null;
 		setIsLoading(true);
 		setError(null);
 		try {
+			if (!hasCacheApi()) {
+				const entry = memoryCache.get(normalizeCacheKey(key));
+				if (!entry || entry.type !== "binary") return null;
+				return cloneUint8Array(entry.value);
+			}
+
 			const cache = await getCache();
 			const response = await cache.match(toRequest(key));
 			if (!response) return null;
@@ -116,10 +155,13 @@ const useCache = (cacheName: string = DEFAULT_CACHE_NAME): UseCacheReturn => {
 		} finally {
 			setIsLoading(false);
 		}
-	}, [getCache]);
+	}, [getCache, memoryCache]);
 
 	const remove = useCallback(async (key: string): Promise<boolean> => {
-		if (!hasCacheApi()) return false;
+		if (!hasCacheApi()) {
+			return memoryCache.delete(normalizeCacheKey(key));
+		}
+
 		try {
 			const cache = await getCache();
 			return cache.delete(toRequest(key));
@@ -127,17 +169,21 @@ const useCache = (cacheName: string = DEFAULT_CACHE_NAME): UseCacheReturn => {
 			setError(toError(err));
 			return false;
 		}
-	}, [getCache]);
+	}, [getCache, memoryCache]);
 
 	const clear = useCallback(async (): Promise<boolean> => {
-		if (!hasCacheApi()) return false;
+		if (!hasCacheApi()) {
+			memoryCache.clear();
+			return true;
+		}
+
 		try {
 			return caches.delete(cacheName);
 		} catch (err) {
 			setError(toError(err));
 			return false;
 		}
-	}, [cacheName]);
+	}, [cacheName, memoryCache]);
 
 	return { write, read, writeBinary, readBinary, remove, clear, isLoading, error };
 };

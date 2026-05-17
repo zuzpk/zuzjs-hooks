@@ -23,6 +23,21 @@ export interface UseLocalStorageOptions<T> {
 	onChange?: (change: LocalStorageChange<T>) => void;
 }
 
+export interface UseLocalStorageListOptions<T> extends Omit<UseLocalStorageOptions<T[]>, "defaultValue"> {
+	defaultValue?: T[];
+	unique?: boolean;
+}
+
+export interface UseLocalStorageListResult<T> {
+	value: T[];
+	setValues: (nextValue: T[] | ((currentValue: T[]) => T[])) => T[] | undefined;
+	addValue: (nextValue: T | T[]) => T[] | undefined;
+	removeValue: (nextValue: T | T[]) => T[] | undefined;
+	toggleValue: (nextValue: T) => T[] | undefined;
+	clear: () => void;
+	lastChange: LocalStorageChange<T[]> | null;
+}
+
 const LOCAL_STORAGE_EVENT = "zuz:local-storage-change";
 const SESSION_STORAGE_EVENT = "zuz:session-storage-change";
 
@@ -296,6 +311,94 @@ const useLocalStorage = <T>(
 		removeValue,
 		clear,
 		lastChange
+	};
+};
+
+function includesValue<T>(values: T[], nextValue: T): boolean {
+	return values.some((value) => Object.is(value, nextValue));
+}
+
+function normalizeValues<T>(values: T[] | undefined, fallbackValue: T[] | undefined): T[] {
+	return values ?? fallbackValue ?? [];
+}
+
+/**
+ * A hook for managing a collection of unique items in browser localStorage.
+ */
+export const useLocalStore = <T>(
+	key: string,
+	options: UseLocalStorageListOptions<T> = {}
+): UseLocalStorageListResult<T> => {
+	const {
+		defaultValue = [],
+		unique = true,
+		...storageOptions
+	} = options;
+
+	const localStorageState = useLocalStorage<T[]>(key, {
+		...storageOptions,
+		defaultValue
+	});
+
+	const values = normalizeValues(localStorageState.value, defaultValue);
+
+	const setValues = useCallback((nextValue: T[] | ((currentValue: T[]) => T[])) => {
+		return localStorageState.setValue((currentValue) => {
+			const currentValues = normalizeValues(currentValue, defaultValue);
+			const resolvedValues = typeof nextValue === "function"
+				? nextValue(currentValues)
+				: nextValue;
+
+			return unique
+				? resolvedValues.filter((value, index, array) => array.findIndex((item) => Object.is(item, value)) === index)
+				: resolvedValues;
+		});
+	}, [defaultValue, localStorageState, unique]);
+
+	const addValue = useCallback((nextValue: T | T[]) => {
+		return setValues((currentValues) => {
+			const valuesToAdd = Array.isArray(nextValue) ? nextValue : [nextValue];
+
+			if (!unique) {
+				return [...currentValues, ...valuesToAdd];
+			}
+
+			return valuesToAdd.reduce<T[]>((accumulator, value) => {
+				if (includesValue(accumulator, value)) {
+					return accumulator;
+				}
+
+				return [...accumulator, value];
+			}, [...currentValues]);
+		});
+	}, [setValues, unique]);
+
+	const removeValue = useCallback((nextValue: T | T[]) => {
+		return setValues((currentValues) => {
+			const valuesToRemove = Array.isArray(nextValue) ? nextValue : [nextValue];
+
+			return currentValues.filter((value) => !valuesToRemove.some((item) => Object.is(item, value)));
+		});
+	}, [setValues]);
+
+	const toggleValue = useCallback((nextValue: T) => {
+		return setValues((currentValues) => {
+			if (includesValue(currentValues, nextValue)) {
+				return currentValues.filter((value) => !Object.is(value, nextValue));
+			}
+
+			return unique ? [...currentValues, nextValue] : [...currentValues, nextValue];
+		});
+	}, [setValues, unique]);
+
+	return {
+		value: values,
+		setValues,
+		addValue,
+		removeValue,
+		toggleValue,
+		clear: localStorageState.clear,
+		lastChange: localStorageState.lastChange as LocalStorageChange<T[]> | null
 	};
 };
 

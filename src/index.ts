@@ -117,6 +117,12 @@ export {
 } from './useLocalStorage';
 
 export {
+    useLocalStore,
+    type UseLocalStorageListOptions,
+    type UseLocalStorageListResult
+} from './useLocalStorage';
+
+export {
     default as useSessionStorage,
     type SessionStorageAction,
     type SessionStorageChange,
