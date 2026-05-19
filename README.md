@@ -71,6 +71,7 @@ import { useDebounce, useLocalStorage, useNetworkStatus } from "@zuzjs/hooks";
 - `useDatabase` (`useDB` in provider context): IndexedDB utilities.
 - `useDB`, `useDBHealed`, `useWatchDB`: DBProvider context hooks.
 - `useWebSocket`: Typed websocket lifecycle and messaging.
+- `useWebWorker`: Typed worker calls with pooling, progress, retries, and cancellation.
 
 ### Media and Upload
 
@@ -427,6 +428,180 @@ function ChatClient() {
     );
 }
 ```
+
+## Parallel and Worker Usage
+
+### useWebWorker
+
+Run CPU-heavy or blocking work in Web Workers with a typed request/response API.
+
+Highlights:
+
+- Function-based worker API (no separate worker file required)
+- Multiple in-flight calls with per-call Promise resolution
+- Progress streaming from worker to UI
+- AbortSignal cancellation and per-call timeout
+- Retry/backoff controls
+- Worker pool scheduling (`least-busy` or `round-robin`)
+- Transferable object support via call options and `transfer()` helper
+
+Basic function worker:
+
+```tsx
+import { useWebWorker } from "@zuzjs/hooks";
+
+type Input = { values: number[] };
+type Output = { sum: number; avg: number };
+
+function StatsPanel() {
+    const {
+        call,
+        result,
+        loading,
+        progress,
+        error,
+    } = useWebWorker<Input, Output>(async (input, api) => {
+        let sum = 0;
+        for (let i = 0; i < input.values.length; i++) {
+            if (api.signal.aborted) {
+                throw new Error("aborted");
+            }
+            sum += input.values[i];
+            if (i % 500 === 0) {
+                api.progress((i + 1) / input.values.length);
+            }
+        }
+
+        return {
+            sum,
+            avg: input.values.length ? sum / input.values.length : 0,
+        };
+    });
+
+    const run = async () => {
+        await call(
+            { values: Array.from({ length: 50000 }, (_, i) => i + 1) },
+            {
+                timeout: 5000,
+                onProgress: (p) => console.log("progress", p),
+            },
+        );
+    };
+
+    return (
+        <div>
+            <button disabled={loading} onClick={run}>Compute</button>
+            <div>Progress: {String(progress)}</div>
+            <pre>{JSON.stringify(result, null, 2)}</pre>
+            {error && <p>{error.message}</p>}
+        </div>
+    );
+}
+```
+
+Pooling, retries, events, and cancellation:
+
+```tsx
+import { useEffect } from "react";
+import { useWebWorker } from "@zuzjs/hooks";
+
+export function BatchRunner() {
+    const {
+        call,
+        cancelAll,
+        on,
+        pending,
+    } = useWebWorker<number, number>(
+        async (n, api) => {
+            api.emit("job:start", n);
+            const out = n * n;
+            api.emit("job:end", out);
+            return out;
+        },
+        {
+            poolSize: 4,
+            strategy: "least-busy",
+            callDefaults: {
+                retries: 2,
+                retryDelay: (attempt) => 200 * (attempt + 1),
+            },
+        },
+    );
+
+    useEffect(() => {
+        const offStart = on("job:start", (payload) => {
+            console.log("started", payload);
+        });
+        const offEnd = on("job:end", (payload) => {
+            console.log("finished", payload);
+        });
+        return () => {
+            offStart();
+            offEnd();
+        };
+    }, [on]);
+
+    const runAll = async () => {
+        const values = [2, 3, 4, 5, 6, 7, 8, 9];
+        const results = await Promise.all(values.map((v) => call(v)));
+        console.log(results);
+    };
+
+    return (
+        <div>
+            <button onClick={runAll}>Run Batch</button>
+            <button onClick={cancelAll}>Cancel All</button>
+            <p>Pending: {pending}</p>
+        </div>
+    );
+}
+```
+
+Transferables:
+
+```tsx
+import { transfer, useWebWorker } from "@zuzjs/hooks";
+
+function ZeroCopyExample() {
+    const { call } = useWebWorker<ArrayBuffer, ArrayBuffer>((buffer) => {
+        const view = new Uint8Array(buffer);
+        for (let i = 0; i < view.length; i++) view[i] = (view[i] + 1) & 255;
+        return transfer(buffer, [buffer]);
+    });
+
+    const run = async () => {
+        const buffer = new ArrayBuffer(1024);
+        const out = await call(buffer, { transfer: [buffer] });
+        console.log(out.byteLength);
+    };
+
+    return <button onClick={run}>Mutate Buffer</button>;
+}
+```
+
+Use an existing worker script:
+
+```tsx
+import { useWebWorker } from "@zuzjs/hooks";
+
+function ExistingScriptWorker() {
+    const { call } = useWebWorker<string, string>("/workers/transform-worker.js");
+
+    const onRun = async () => {
+        const transformed = await call("hello world");
+        console.log(transformed);
+    };
+
+    return <button onClick={onRun}>Run Worker Script</button>;
+}
+```
+
+Notes:
+
+- Function workers must be self-contained. Do not rely on outer-scope closures.
+- `status` reflects the latest lifecycle state: `idle | running | success | error | terminated`.
+- `terminate()` shuts down workers immediately; `restart()` recreates fresh workers.
+- In frameworks with SSR, invoke this hook in client-only components.
 
 ## Visual Animation Usage
 

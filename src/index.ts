@@ -49,7 +49,7 @@ export { default as useDebounce } from './useDebounce';
 
 export { default as useDelayed, default as useMounted } from './useDelayed';
 
-export { default as useDevice } from './useDevice';
+export { default as useDevice, type DeviceInfo } from './useDevice';
 
 export { default as useDimensions } from './useDimensions';
 
@@ -196,3 +196,9 @@ export type {
 } from './useUploader';
 
 export { default as useWebSocket, type WebSocketOptions } from './useWebSocket';
+
+export {
+    default as useWebWorker,
+    type UseWebWorkerOptions,
+    type UseWebWorkerResult
+} from './useWebWorker';
