@@ -350,6 +350,7 @@ const useAnchor = (
         root, 
         hovered, 
         anchorName: _anchorName,
+        anchorRef: anchorElRef,
         canUseDocument,
         floatingRef,
         floatingStyle,
