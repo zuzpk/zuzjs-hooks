@@ -10,14 +10,16 @@ type UseImageState = {
 type CacheEntry =
     | { status: "loading"; promise: Promise<string> }
     | { status: "loaded"; src: string }
-    | { status: "error"; error: string };
+    | { status: "error"; error: string; at: number };
 
 const imageCache = new Map<string, CacheEntry>();
+const ERROR_RETRY_COOLDOWN_MS = 5_000;
 
 const useImage = (
     url: string, 
     crossOrigin?: 'anonymous' | 'use-credentials', 
-    referrerPolicy?: 'no-referrer' | 'no-referrer-when-downgrade' | 'origin' | 'origin-when-cross-origin' | 'same-origin' | 'strict-origin' | 'strict-origin-when-cross-origin' | 'unsafe-url'
+    referrerPolicy?: 'no-referrer' | 'no-referrer-when-downgrade' | 'origin' | 'origin-when-cross-origin' | 'same-origin' | 'strict-origin' | 'strict-origin-when-cross-origin' | 'unsafe-url',
+    error_retry_cooldown_ms: number = ERROR_RETRY_COOLDOWN_MS
 ) => {
 
     const cacheKey = `${crossOrigin || ``}|${referrerPolicy || ``}|${url}`;
@@ -27,7 +29,7 @@ const useImage = (
         if (cached?.status === "loaded") {
             return { src: cached.src, loaded: true, error: null };
         }
-        if (cached?.status === "error") {
+        if (cached?.status === "error" && Date.now() - cached.at < error_retry_cooldown_ms) {
             return { src: ``, loaded: false, error: cached.error };
         }
         return { src: ``, loaded: false, error: null };
@@ -52,11 +54,15 @@ const useImage = (
             };
         }
 
-        if (cached?.status === "error") {
+        if (cached?.status === "error" && Date.now() - cached.at < error_retry_cooldown_ms) {
             setState({ src: ``, loaded: false, error: cached.error });
             return () => {
                 active = false;
             };
+        }
+
+        if (cached?.status === "error") {
+            imageCache.delete(cacheKey);
         }
 
         const loadPromise = cached?.status === "loading"
@@ -83,7 +89,7 @@ const useImage = (
             })
             .catch((err: Error) => {
                 const message = err?.message || `Failed to load image at ${url}`;
-                imageCache.set(cacheKey, { status: "error", error: message });
+                imageCache.set(cacheKey, { status: "error", error: message, at: Date.now() });
                 if (active) {
                     setState({ src: ``, loaded: false, error: message });
                 }
