@@ -158,7 +158,11 @@ export { default as useResizeObserver } from './useResizeObserver';
 
 export { default as useScrollbar, type ScrollBreakpoint } from './useScrollbar';
 
-export { default as useScrollPhysics } from './useScrollPhysics';
+export { 
+    default as useScrollPhysics,
+    type ScrollPhysicsOptions
+
+} from './useScrollPhysics';
 
 export { default as useShortcuts } from './useShortcuts';
 
